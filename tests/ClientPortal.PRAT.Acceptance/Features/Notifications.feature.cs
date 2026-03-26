@@ -29,7 +29,7 @@ namespace ClientPortal.PRAT.Acceptance.Features
         private static string[] featureTags = new string[] {
                 "Notifications"};
         
-        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new global::System.Globalization.CultureInfo("en-US"), "Features", "Notifications", "  As a registered user\r\n  I want to be able to land on Notifications", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags, InitializeCucumberMessages());
+        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new global::System.Globalization.CultureInfo("en-US"), "Features", "Notifications", "  As a registered user\n  I want to be able to land on Notifications", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags, InitializeCucumberMessages());
         
         [global::NUnit.Framework.OneTimeSetUpAttribute()]
         public static async global::System.Threading.Tasks.Task FeatureSetupAsync()
@@ -127,7 +127,7 @@ Feature: Notifications
         private static global::Io.Cucumber.Messages.Types.GherkinDocument GherkinDocumentFunc()
         {
             return new global::Io.Cucumber.Messages.Types.GherkinDocument("Features/Notifications.feature", new global::Io.Cucumber.Messages.Types.Feature(new global::Io.Cucumber.Messages.Types.Location(2, new System.Nullable<long>(1)), new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Tag>(new global::Io.Cucumber.Messages.Types.Tag[] {
-                                new global::Io.Cucumber.Messages.Types.Tag(new global::Io.Cucumber.Messages.Types.Location(1, new System.Nullable<long>(1)), "@Notifications", "cc21e0cf81ade95d8183a0e1e7ec2c5d")}), "en-US", "Feature", "Notifications", "  As a registered user\r\n  I want to be able to land on Notifications", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.FeatureChild>(new global::Io.Cucumber.Messages.Types.FeatureChild[] {
+                                new global::Io.Cucumber.Messages.Types.Tag(new global::Io.Cucumber.Messages.Types.Location(1, new System.Nullable<long>(1)), "@Notifications", "cc21e0cf81ade95d8183a0e1e7ec2c5d")}), "en-US", "Feature", "Notifications", "  As a registered user\n  I want to be able to land on Notifications", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.FeatureChild>(new global::Io.Cucumber.Messages.Types.FeatureChild[] {
                                 new global::Io.Cucumber.Messages.Types.FeatureChild(null, new global::Io.Cucumber.Messages.Types.Background(new global::Io.Cucumber.Messages.Types.Location(6, new System.Nullable<long>(3)), "Background", "", "", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Step>(new global::Io.Cucumber.Messages.Types.Step[] {
                                                     new global::Io.Cucumber.Messages.Types.Step(new global::Io.Cucumber.Messages.Types.Location(7, new System.Nullable<long>(5)), "Given ", global::Io.Cucumber.Messages.Types.StepKeywordType.CONTEXT, "the user navigates to the Client Portal", null, null, "0c165090e047ef50849f03744b10dbbf")}), "847c0263e0760458ba0063a926bd0808"), null)})), new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Comment>(new global::Io.Cucumber.Messages.Types.Comment[] {
                             new global::Io.Cucumber.Messages.Types.Comment(new global::Io.Cucumber.Messages.Types.Location(9, new System.Nullable<long>(1)), "  # @Smoke"),

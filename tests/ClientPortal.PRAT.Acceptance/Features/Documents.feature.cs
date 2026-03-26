@@ -29,7 +29,7 @@ namespace ClientPortal.PRAT.Acceptance.Features
         private static string[] featureTags = new string[] {
                 "Documents"};
         
-        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new global::System.Globalization.CultureInfo("en-US"), "Features", "Documents page", "  As a registered user\r\n  I want to be able to navigate to the Documents page", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags, InitializeCucumberMessages());
+        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new global::System.Globalization.CultureInfo("en-US"), "Features", "Documents page", "  As a registered user\n  I want to be able to navigate to the Documents page", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags, InitializeCucumberMessages());
         
         [global::NUnit.Framework.OneTimeSetUpAttribute()]
         public static async global::System.Threading.Tasks.Task FeatureSetupAsync()
@@ -139,7 +139,7 @@ namespace ClientPortal.PRAT.Acceptance.Features
         private static global::Io.Cucumber.Messages.Types.GherkinDocument GherkinDocumentFunc()
         {
             return new global::Io.Cucumber.Messages.Types.GherkinDocument("Features/Documents.feature", new global::Io.Cucumber.Messages.Types.Feature(new global::Io.Cucumber.Messages.Types.Location(2, new System.Nullable<long>(1)), new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Tag>(new global::Io.Cucumber.Messages.Types.Tag[] {
-                                new global::Io.Cucumber.Messages.Types.Tag(new global::Io.Cucumber.Messages.Types.Location(1, new System.Nullable<long>(1)), "@Documents", "3936857bb0b32a51b1c0114943f8f269")}), "en-US", "Feature", "Documents page", "  As a registered user\r\n  I want to be able to navigate to the Documents page", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.FeatureChild>(new global::Io.Cucumber.Messages.Types.FeatureChild[] {
+                                new global::Io.Cucumber.Messages.Types.Tag(new global::Io.Cucumber.Messages.Types.Location(1, new System.Nullable<long>(1)), "@Documents", "3936857bb0b32a51b1c0114943f8f269")}), "en-US", "Feature", "Documents page", "  As a registered user\n  I want to be able to navigate to the Documents page", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.FeatureChild>(new global::Io.Cucumber.Messages.Types.FeatureChild[] {
                                 new global::Io.Cucumber.Messages.Types.FeatureChild(null, new global::Io.Cucumber.Messages.Types.Background(new global::Io.Cucumber.Messages.Types.Location(6, new System.Nullable<long>(3)), "Background", "", "", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Step>(new global::Io.Cucumber.Messages.Types.Step[] {
                                                     new global::Io.Cucumber.Messages.Types.Step(new global::Io.Cucumber.Messages.Types.Location(7, new System.Nullable<long>(5)), "Given ", global::Io.Cucumber.Messages.Types.StepKeywordType.CONTEXT, "the user navigates to the Client Portal", null, null, "1753ae329ab48f50b5960c3b41b4f5fe"),
                                                     new global::Io.Cucumber.Messages.Types.Step(new global::Io.Cucumber.Messages.Types.Location(8, new System.Nullable<long>(5)), "And ", global::Io.Cucumber.Messages.Types.StepKeywordType.CONJUNCTION, "the user is logged in", null, null, "7655e6bfd76f4851b9e301da670625c1")}), "51e196a7e16e6f57a831424f717c4e69"), null),

@@ -29,8 +29,8 @@ namespace ClientPortal.PRAT.Acceptance.Features
         private static string[] featureTags = new string[] {
                 "TermsAndConditions"};
         
-        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new global::System.Globalization.CultureInfo("en-US"), "Features", "Terms and Conditions", "  As a registered user\r\n  I want to be able to navigate to the Terms and conditio" +
-                "ns page", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags, InitializeCucumberMessages());
+        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new global::System.Globalization.CultureInfo("en-US"), "Features", "Terms and Conditions", "  As a registered user\n  I want to be able to navigate to the Terms and condition" +
+                "s page", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags, InitializeCucumberMessages());
         
         [global::NUnit.Framework.OneTimeSetUpAttribute()]
         public static async global::System.Threading.Tasks.Task FeatureSetupAsync()
@@ -128,8 +128,8 @@ Feature: Terms and Conditions
         private static global::Io.Cucumber.Messages.Types.GherkinDocument GherkinDocumentFunc()
         {
             return new global::Io.Cucumber.Messages.Types.GherkinDocument("Features/Terms.feature", new global::Io.Cucumber.Messages.Types.Feature(new global::Io.Cucumber.Messages.Types.Location(2, new System.Nullable<long>(1)), new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Tag>(new global::Io.Cucumber.Messages.Types.Tag[] {
-                                new global::Io.Cucumber.Messages.Types.Tag(new global::Io.Cucumber.Messages.Types.Location(1, new System.Nullable<long>(1)), "@TermsAndConditions", "a0132553cba9215dae7137e34700060c")}), "en-US", "Feature", "Terms and Conditions", "  As a registered user\r\n  I want to be able to navigate to the Terms and conditio" +
-                        "ns page", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.FeatureChild>(new global::Io.Cucumber.Messages.Types.FeatureChild[] {
+                                new global::Io.Cucumber.Messages.Types.Tag(new global::Io.Cucumber.Messages.Types.Location(1, new System.Nullable<long>(1)), "@TermsAndConditions", "a0132553cba9215dae7137e34700060c")}), "en-US", "Feature", "Terms and Conditions", "  As a registered user\n  I want to be able to navigate to the Terms and condition" +
+                        "s page", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.FeatureChild>(new global::Io.Cucumber.Messages.Types.FeatureChild[] {
                                 new global::Io.Cucumber.Messages.Types.FeatureChild(null, new global::Io.Cucumber.Messages.Types.Background(new global::Io.Cucumber.Messages.Types.Location(6, new System.Nullable<long>(3)), "Background", "", "", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Step>(new global::Io.Cucumber.Messages.Types.Step[] {
                                                     new global::Io.Cucumber.Messages.Types.Step(new global::Io.Cucumber.Messages.Types.Location(7, new System.Nullable<long>(5)), "Given ", global::Io.Cucumber.Messages.Types.StepKeywordType.CONTEXT, "the user navigates to the Client Portal", null, null, "c15cfd1169b258549441e96d6616da19")}), "8a1c68817c1f26579ae5fe374d308415"), null)})), new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Comment>(new global::Io.Cucumber.Messages.Types.Comment[] {
                             new global::Io.Cucumber.Messages.Types.Comment(new global::Io.Cucumber.Messages.Types.Location(9, new System.Nullable<long>(1)), "  # @Smoke"),

@@ -29,8 +29,8 @@ namespace ClientPortal.PRAT.Acceptance.Features
         private static string[] featureTags = new string[] {
                 "Navigation"};
         
-        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new global::System.Globalization.CultureInfo("en-US"), "Features", "Navigation", "  As a registered user\r\n  I want to be able to verify all pages exist and are nav" +
-                "igable", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags, InitializeCucumberMessages());
+        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new global::System.Globalization.CultureInfo("en-US"), "Features", "Navigation", "  As a registered user\n  I want to be able to verify all pages exist and are navi" +
+                "gable", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags, InitializeCucumberMessages());
         
         [global::NUnit.Framework.OneTimeSetUpAttribute()]
         public static async global::System.Threading.Tasks.Task FeatureSetupAsync()
@@ -148,8 +148,8 @@ Rule: Cookie page
         private static global::Io.Cucumber.Messages.Types.GherkinDocument GherkinDocumentFunc()
         {
             return new global::Io.Cucumber.Messages.Types.GherkinDocument("Features/Navigation.feature", new global::Io.Cucumber.Messages.Types.Feature(new global::Io.Cucumber.Messages.Types.Location(2, new System.Nullable<long>(1)), new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Tag>(new global::Io.Cucumber.Messages.Types.Tag[] {
-                                new global::Io.Cucumber.Messages.Types.Tag(new global::Io.Cucumber.Messages.Types.Location(1, new System.Nullable<long>(1)), "@Navigation", "e22961e8a6ee2850b75a2b979e78a0ae")}), "en-US", "Feature", "Navigation", "  As a registered user\r\n  I want to be able to verify all pages exist and are nav" +
-                        "igable", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.FeatureChild>(new global::Io.Cucumber.Messages.Types.FeatureChild[] {
+                                new global::Io.Cucumber.Messages.Types.Tag(new global::Io.Cucumber.Messages.Types.Location(1, new System.Nullable<long>(1)), "@Navigation", "e22961e8a6ee2850b75a2b979e78a0ae")}), "en-US", "Feature", "Navigation", "  As a registered user\n  I want to be able to verify all pages exist and are navi" +
+                        "gable", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.FeatureChild>(new global::Io.Cucumber.Messages.Types.FeatureChild[] {
                                 new global::Io.Cucumber.Messages.Types.FeatureChild(null, new global::Io.Cucumber.Messages.Types.Background(new global::Io.Cucumber.Messages.Types.Location(6, new System.Nullable<long>(3)), "Background", "", "", new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Step>(new global::Io.Cucumber.Messages.Types.Step[] {
                                                     new global::Io.Cucumber.Messages.Types.Step(new global::Io.Cucumber.Messages.Types.Location(7, new System.Nullable<long>(3)), "Given ", global::Io.Cucumber.Messages.Types.StepKeywordType.CONTEXT, "the user navigates to the Client Portal", null, null, "4f455afc34044a54ae423739db9ca363")}), "ecc645156ffd7e5495c0a868231ba1af"), null),
                                 new global::Io.Cucumber.Messages.Types.FeatureChild(null, null, new global::Io.Cucumber.Messages.Types.Scenario(new global::Io.Cucumber.Messages.Types.Location(10, new System.Nullable<long>(3)), new System.Collections.Generic.List<global::Io.Cucumber.Messages.Types.Tag>(new global::Io.Cucumber.Messages.Types.Tag[] {

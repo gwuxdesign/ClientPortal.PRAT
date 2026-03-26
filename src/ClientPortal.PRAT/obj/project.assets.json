@@ -75,31 +75,24 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\ptl93076\\.nuget\\packages\\": {},
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "/Users/gragdad/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\ptl93076\\development\\ClientPortal.PRAT\\src\\ClientPortal.PRAT\\ClientPortal.PRAT.csproj",
+      "projectUniqueName": "/Users/gragdad/Documents/development/GIT/ClientPortal.PRAT/src/ClientPortal.PRAT/ClientPortal.PRAT.csproj",
       "projectName": "ClientPortal.PRAT",
-      "projectPath": "C:\\Users\\ptl93076\\development\\ClientPortal.PRAT\\src\\ClientPortal.PRAT\\ClientPortal.PRAT.csproj",
-      "packagesPath": "C:\\Users\\ptl93076\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\ptl93076\\development\\ClientPortal.PRAT\\src\\ClientPortal.PRAT\\obj\\",
+      "projectPath": "/Users/gragdad/Documents/development/GIT/ClientPortal.PRAT/src/ClientPortal.PRAT/ClientPortal.PRAT.csproj",
+      "packagesPath": "/Users/gragdad/.nuget/packages/",
+      "outputPath": "/Users/gragdad/Documents/development/GIT/ClientPortal.PRAT/src/ClientPortal.PRAT/obj/",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\ptl93076\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        "/Users/gragdad/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"
       ],
       "sources": {
-        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -148,7 +141,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.201/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.AspNetCore": "(,10.0.32767]",
           "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",
