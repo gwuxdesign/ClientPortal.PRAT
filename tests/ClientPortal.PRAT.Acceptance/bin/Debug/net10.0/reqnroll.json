@@ -1,0 +1,27 @@
+{
+  "bindingCulture": {
+    "name": "en-GB"
+  },
+  "generator": {
+    "allowDebugGeneratedFiles": true,
+    "allowRowTests": true
+  },
+  "runtime": {
+    "stopAtFirstError": false
+  },
+  "reqnroll": {
+    "tagMapping": {
+      "Smoke": "Category",
+      "Cookies": "Category",
+      "Documents": "Category",
+      "Login": "Category",
+      "Menu": "Category",
+      "Navigation": "Category",
+      "Notifications": "Category",
+      "PasswordReset": "Category",
+      "PrivacyPolicy": "Category",
+      "Profile": "Category",
+      "TermsAndConditions": "Category"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+P.R.A.T - Playwright Reqnroll Automation Tests
+==============================================
+16.09.25:
+- Started going through cookie policy scenarios
+12.09.25:
+- Set up framework on Hayley Cronin's machine
+- Refined setup configuration
+11.09.25:
+- Incorporated Reqnroll into the framework
+- Feature files now trigger and use new shared methods
+- Configured the URL to be parameterised
+- Updated files + configs so new repository now works
+03.09.25:
+- Renamed project to step away from course assignment name
+    - ClientPortal.PRAT formerly clientPortalCode
+02.09.25:
+- Refactored rest of code to utilise new pages library
+- Changed login and password reset logic
+01.09.25:
+- Created library of shared pages
+- Refactored tests to reduce duplicate code
+- Updated browser configuration to add parameter for Desktop, Mobile or Tablet
+29.08.25:
+- Created new tests for Password Reset functionality
+- Created configurable browser resolutions
+27.08.25:
+- Migrated project from Level 7 Digital & Technology Solutions Specialist
+Software Engineering course
+- Initial setup of framework
+- Folder structure in place
+- Basic UI tests generated

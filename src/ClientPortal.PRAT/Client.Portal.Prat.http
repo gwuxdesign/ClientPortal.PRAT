@@ -1,0 +1,6 @@
+@ClientPortal.PRAT_HostAddress = http://localhost:5001
+
+GET {{ClientPortal.PRAT_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
