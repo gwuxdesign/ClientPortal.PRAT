@@ -1,0 +1,92 @@
+############################
+# IDE / editor user state
+############################
+**/.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.idea/
+*.iml
+
+############################
+# Build output
+############################
+**/bin/
+**/obj/
+**/*.feature.cs
+[Bb]uild/
+[Ll]og/
+
+############################
+# Reqnroll (C# BDD framework)
+############################
+**/*.reqnroll.cs
+
+############################
+# Playwright (end-to-end tests)
+############################
+# Playwright output folders
+playwright-report/
+test-results/
+**/.playwright/
+**/Playwright/.cache/
+
+# Playwright drivers and browser downloads
+bin/**/playwright*
+bin/**/chrome*
+bin/**/msedge*
+
+############################
+# Test artefacts (NUnit/MSTest/xUnit)
+############################
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+############################
+# Logs and diagnostics
+############################
+*.log
+*.dmp
+*.etl
+
+############################
+# Local secrets / environment config
+############################
+credentials.json
+*.secret.json
+appsettings.*.local.json
+
+# Allow safe non-secret templates to be committed
+!appsettings.Template.json
+!example.secret.json
+
+############################
+# Tooling caches / analysis
+############################
+.nCrunch*
+.stylecop
+*.cache
+*.pidb
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+############################
+# OS-specific
+############################
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+############################
+# Misc local scripts
+############################
+local-*.ps1
+local-*.sh
