@@ -75,24 +75,25 @@
     ]
   },
   "packageFolders": {
-    "/Users/gragdad/.nuget/packages/": {}
+    "/home/gragdad/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/gragdad/Documents/development/GIT/ClientPortal.PRAT/src/ClientPortal.PRAT/ClientPortal.PRAT.csproj",
+      "projectUniqueName": "/home/gragdad/Development/ClientPortal.PRAT/src/ClientPortal.PRAT/ClientPortal.PRAT.csproj",
       "projectName": "ClientPortal.PRAT",
-      "projectPath": "/Users/gragdad/Documents/development/GIT/ClientPortal.PRAT/src/ClientPortal.PRAT/ClientPortal.PRAT.csproj",
-      "packagesPath": "/Users/gragdad/.nuget/packages/",
-      "outputPath": "/Users/gragdad/Documents/development/GIT/ClientPortal.PRAT/src/ClientPortal.PRAT/obj/",
+      "projectPath": "/home/gragdad/Development/ClientPortal.PRAT/src/ClientPortal.PRAT/ClientPortal.PRAT.csproj",
+      "packagesPath": "/home/gragdad/.nuget/packages/",
+      "outputPath": "/home/gragdad/Development/ClientPortal.PRAT/src/ClientPortal.PRAT/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/Users/gragdad/.nuget/NuGet/NuGet.Config"
+        "/home/gragdad/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"
       ],
       "sources": {
+        "/usr/lib/dotnet/library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -111,7 +112,7 @@
         "auditLevel": "low",
         "auditMode": "all"
       },
-      "SdkAnalysisLevel": "10.0.200"
+      "SdkAnalysisLevel": "10.0.100"
     },
     "frameworks": {
       "net10.0": {
@@ -141,7 +142,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.201/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/10.0.104/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.AspNetCore": "(,10.0.32767]",
           "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",
