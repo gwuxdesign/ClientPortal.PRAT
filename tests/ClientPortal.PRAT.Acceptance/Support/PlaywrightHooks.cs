@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Reqnroll;
 using Microsoft.Playwright;
@@ -19,7 +20,7 @@ namespace ClientPortal.PRAT.Acceptance.Support
             _world.Playwright = await Playwright.CreateAsync();
 
             var headed = Environment.GetEnvironmentVariable("HEADED");
-            bool isHeaded = !string.IsNullOrEmpty(headed) && headed == "1";
+            bool isHeaded = headed == "1";
 
             var browserType = Environment.GetEnvironmentVariable("BROWSER")?.ToLower() ?? "chromium";
 
@@ -33,18 +34,32 @@ namespace ClientPortal.PRAT.Acceptance.Support
             _world.Browser = await selectedBrowserType.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = !isHeaded,
-                Args = new[] { "--disable-dev-shm-usage" } // CI stability on hosted agents
+                Args = new[] { "--disable-dev-shm-usage" }
             });
 
             var contextOptions = GetContextOptions();
-            _world.Context = await _world.Browser.NewContextAsync(contextOptions);
 
-            // Set a consistent default timeout if you like, keeps flaky waits down
+            // Add video recording for debugging failures
+            contextOptions.RecordVideoDir = "artifacts/videos";
+
+            _world.Context = await _world.Browser.NewContextAsync(contextOptions);
             _world.Context.SetDefaultTimeout(10000);
 
             _world.Page = await _world.Context.NewPageAsync();
 
-            // Optional: start tracing for each scenario, very helpful for failures
+            // Capture browser console logs
+            _world.Page.Console += (_, msg) =>
+            {
+                Console.WriteLine($"[BrowserConsole] {msg.Type}: {msg.Text}");
+            };
+
+            // Capture failed network requests
+            _world.Page.RequestFailed += (_, req) =>
+            {
+                Console.WriteLine($"[RequestFailed] {req.Method} {req.Url} — {req.Failure}");
+            };
+
+            // Start tracing
             await _world.Context.Tracing.StartAsync(new TracingStartOptions
             {
                 Screenshots = true,
@@ -52,32 +67,69 @@ namespace ClientPortal.PRAT.Acceptance.Support
                 Sources = true
             });
 
-            // Now that Page exists, wire up page objects
+            // Wire up page objects
             _world.Pages = new PageImports(_world);
         }
 
         [AfterScenario(Order = 100)]
         public async Task AfterScenario(ScenarioContext scenarioContext)
         {
-            var tracePath = $"artifacts/traces/{Sanitise(scenarioContext.ScenarioInfo.Title)}.zip";
-            await _world.Context.Tracing.StopAsync(new TracingStopOptions { Path = tracePath });
+            var safeName = Sanitise(scenarioContext.ScenarioInfo.Title);
 
-            if (_world.Context != null) await _world.Context.CloseAsync();
-            if (_world.Browser != null) await _world.Browser.CloseAsync();
-            _world.Playwright?.Dispose();
+            // Stop tracing safely
+            try
+            {
+                if (_world.Context != null)
+                {
+                    Directory.CreateDirectory("artifacts/traces");
+                    var tracePath = $"artifacts/traces/{safeName}.zip";
+
+                    await _world.Context.Tracing.StopAsync(new TracingStopOptions
+                    {
+                        Path = tracePath
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TracingError] {ex.Message}");
+            }
+
+            // Save video only if scenario failed
+            try
+            {
+                if (scenarioContext.TestError != null && _world.Page?.Video != null)
+                {
+                    Directory.CreateDirectory("artifacts/videos");
+                    var videoPath = await _world.Page.Video.PathAsync();
+                    File.Move(videoPath, $"artifacts/videos/{safeName}.webm", true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VideoError] {ex.Message}");
+            }
+
+            // Cleanup
+            try { if (_world.Context != null) await _world.Context.CloseAsync(); } catch { }
+            try { if (_world.Browser != null) await _world.Browser.CloseAsync(); } catch { }
+            try { _world.Playwright?.Dispose(); } catch { }
         }
 
         private BrowserNewContextOptions GetContextOptions()
         {
-
             var deviceTypeValue = Environment.GetEnvironmentVariable("DEVICE_TYPE");
 
-            if (!string.IsNullOrEmpty(deviceTypeValue) && deviceTypeValue.StartsWith("custom:", StringComparison.OrdinalIgnoreCase))
+            // Custom resolution: DEVICE_TYPE=custom:2560x1440
+            if (!string.IsNullOrEmpty(deviceTypeValue) &&
+                deviceTypeValue.StartsWith("custom:", StringComparison.OrdinalIgnoreCase))
             {
                 var resolutionPart = deviceTypeValue.Substring("custom:".Length);
                 var parts = resolutionPart.Split('x');
 
-                if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
+                if (parts.Length == 2 &&
+                    int.TryParse(parts[0], out var width) &&
+                    int.TryParse(parts[1], out var height))
                 {
                     return new BrowserNewContextOptions
                     {
@@ -86,15 +138,15 @@ namespace ClientPortal.PRAT.Acceptance.Support
                         IsMobile = false
                     };
                 }
-                else
-                {
-                    throw new ArgumentException($"Invalid custom resolution format: {resolutionPart}. Expected format: WIDTHxHEIGHT (e.g., 2560x1440).");
-                }
+
+                throw new ArgumentException(
+                    $"Invalid custom resolution format: {resolutionPart}. Expected WIDTHxHEIGHT (e.g., 2560x1440).");
             }
 
+            // Standard device profiles
             var deviceType = Enum.TryParse<DeviceType>(deviceTypeValue, true, out var parsedType)
-                    ? parsedType
-                    : DeviceType.Desktop;
+                ? parsedType
+                : DeviceType.Desktop;
 
             return deviceType switch
             {
@@ -129,17 +181,9 @@ namespace ClientPortal.PRAT.Acceptance.Support
             };
         }
 
-        private static DeviceType GetDeviceType()
-        {
-            var value = Environment.GetEnvironmentVariable("DEVICE_TYPE");
-            return Enum.TryParse<DeviceType>(value, true, out var deviceType)
-                ? deviceType
-                : DeviceType.Desktop;
-        }
-
         private static string Sanitise(string name)
         {
-            foreach (var c in System.IO.Path.GetInvalidFileNameChars())
+            foreach (var c in Path.GetInvalidFileNameChars())
                 name = name.Replace(c, '_');
             return name;
         }
@@ -150,7 +194,6 @@ namespace ClientPortal.PRAT.Acceptance.Support
         Desktop,
         Mobile,
         TabletVer,
-
         TabletHor
     }
 }
