@@ -15,7 +15,7 @@ namespace ClientPortal.PRAT.Acceptance.Support
 
         // Run early so the world is ready before any steps execute
         [BeforeScenario(Order = -100)]
-        public async Task BeforeScenario()
+        public async Task BeforeScenario(ScenarioContext scenarioContext)
         {
             _world.Playwright = await Playwright.CreateAsync();
 
@@ -38,8 +38,6 @@ namespace ClientPortal.PRAT.Acceptance.Support
             });
 
             var contextOptions = GetContextOptions();
-
-            // Add video recording for debugging failures
             contextOptions.RecordVideoDir = "artifacts/videos";
 
             _world.Context = await _world.Browser.NewContextAsync(contextOptions);
@@ -47,19 +45,18 @@ namespace ClientPortal.PRAT.Acceptance.Support
 
             _world.Page = await _world.Context.NewPageAsync();
 
-            // Capture browser console logs
             _world.Page.Console += (_, msg) =>
             {
                 Console.WriteLine($"[BrowserConsole] {msg.Type}: {msg.Text}");
+                Console.Out.Flush();
             };
 
-            // Capture failed network requests
             _world.Page.RequestFailed += (_, req) =>
             {
                 Console.WriteLine($"[RequestFailed] {req.Method} {req.Url} — {req.Failure}");
+                Console.Out.Flush();
             };
 
-            // Start tracing
             await _world.Context.Tracing.StartAsync(new TracingStartOptions
             {
                 Screenshots = true,
@@ -67,8 +64,26 @@ namespace ClientPortal.PRAT.Acceptance.Support
                 Sources = true
             });
 
-            // Wire up page objects
             _world.Pages = new PageImports(_world);
+
+            Console.WriteLine($"SCENARIO START: {scenarioContext.ScenarioInfo.Title}");
+            Console.Out.Flush();
+        }
+
+        [BeforeStep]
+        public void BeforeStep(ScenarioContext scenarioContext)
+        {
+            var step = scenarioContext.StepContext.StepInfo.Text;
+            Console.WriteLine($"STEP START: {step}");
+            Console.Out.Flush();
+        }
+
+        [AfterStep]
+        public void AfterStep(ScenarioContext scenarioContext)
+        {
+            var step = scenarioContext.StepContext.StepInfo.Text;
+            Console.WriteLine($"STEP END: {step}");
+            Console.Out.Flush();
         }
 
         [AfterScenario(Order = 100)]
@@ -114,6 +129,15 @@ namespace ClientPortal.PRAT.Acceptance.Support
             try { if (_world.Context != null) await _world.Context.CloseAsync(); } catch { }
             try { if (_world.Browser != null) await _world.Browser.CloseAsync(); } catch { }
             try { _world.Playwright?.Dispose(); } catch { }
+
+            if (scenarioContext.TestError != null)
+            {
+                Console.WriteLine($"SCENARIO ERROR: {scenarioContext.TestError.Message}");
+                Console.Out.Flush();
+            }
+
+            Console.WriteLine($"SCENARIO END: {scenarioContext.ScenarioInfo.Title}");
+            Console.Out.Flush();
         }
 
         private BrowserNewContextOptions GetContextOptions()

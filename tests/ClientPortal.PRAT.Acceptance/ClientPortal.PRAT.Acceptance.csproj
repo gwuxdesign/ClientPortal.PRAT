@@ -9,6 +9,8 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <NoWarn>CS7022</NoWarn>
     <NoWarn>NU1900</NoWarn>
+    <!-- <ReqnrollGenerator>true</ReqnrollGenerator> -->
+    <GenerateReqnrollCodeBehind>true</GenerateReqnrollCodeBehind>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,8 +21,8 @@
     <PackageReference Include="NUnit" Version="4.2.2" />
     <PackageReference Include="NUnit.Analyzers" Version="4.4.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
-    <PackageReference Include="Reqnroll" Version="3.0.0" />
-    <PackageReference Include="Reqnroll.NUnit" Version="3.0.0" />
+    <PackageReference Include="Reqnroll" Version="3.3.4" />
+    <PackageReference Include="Reqnroll.NUnit" Version="3.3.4" />
   </ItemGroup>
 
   <ItemGroup>

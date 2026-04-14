@@ -1,0 +1,146 @@
+@using TestRunner.Web.Services
+@using TestRunner.Web.Models
+
+@page "/run-tests"
+@rendermode InteractiveServer
+
+<h3 class="mb-3">Run Automated Tests</h3>
+
+<div class="row g-3">
+
+    <div class="col-md-3">
+        <label class="form-label">Browser</label>
+        <select class="form-select" @bind="SelectedBrowser">
+            @foreach (var browser in Browsers)
+            {
+                <option value="@browser">@browser</option>
+            }
+        </select>
+    </div>
+
+    @* <div class="col-md-3">
+        <label class="form-label">Headed</label>
+        <select class="form-select" @bind="SelectedHeaded">
+            @foreach (var headed in Headed)
+            {
+                <option value="@headed">@headed</option>
+            }
+        </select>
+    </div> *@
+
+    <div class="col-md-3">
+        <label class="form-label">Device</label>
+        <select class="form-select" @bind="SelectedDevice">
+            @foreach (var device in Devices)
+            {
+                <option value="@device">@device</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Environment</label>
+        <select class="form-select" @bind="SelectedEnvironment">
+            @foreach (var env in Environments)
+            {
+                <option value="@env">@env</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Suite</label>
+        <select class="form-select" @bind="SelectedSuite">
+            @foreach (var suite in Suites)
+            {
+                <option value="@suite">@suite</option>
+            }
+        </select>
+    </div>
+
+</div>
+
+<div class="mt-4">
+    <button class="btn btn-primary" @onclick="RunTestsAsync" disabled="@IsRunning">
+        @if (IsRunning)
+        {
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            <text>Running…</text>
+        }
+        else
+        {
+            <span>Run Tests</span>
+        }
+    </button>
+    <button class="btn btn-danger ms-2" @onclick="StopTests" disabled="@(!IsRunning)">
+        Stop
+    </button>
+
+</div>
+
+<div class="mt-4">
+    <h5>Output</h5>
+    <pre class="bg-dark text-light p-3 rounded" style="height: 750px; overflow-y: auto;">
+        @Output
+    </pre>
+</div>
+
+@code {
+    // Dropdown data
+    private List<string> Browsers = new() { "chromium", "firefox", "webkit" };
+    @* private List<string> Headed = new() { "Yes", "No" }; *@
+    private List<string> Devices = new() { "Desktop", "Mobile", "Tablet Horizontal", "Tablet Vertical" };
+    private List<string> Environments = new() { "DEV", "QA", "REL", "UAT", "PROD" };
+    private List<string> Suites = new() { "Smoke", "Regression", "Full" };
+
+    // Selected values
+    private string SelectedBrowser = "chromium";
+    @* private string SelectedHeaded = "No"; *@
+    private string SelectedDevice = "Desktop";
+    private string SelectedEnvironment = "REL";
+    private string SelectedSuite = "Smoke";
+
+    // Output + state
+    private string Output = "";
+    private bool IsRunning = false;
+
+    [Inject] private ITestRunnerService TestRunnerService { get; set; } = default!;
+    private CancellationTokenSource? cts;
+
+    private void TestClick()
+    {
+        Output = "BUTTON CLICKED\n";
+        StateHasChanged();
+    }
+    private async Task RunTestsAsync()
+    {
+        Output = "BUTTON CLICKED\n";
+        StateHasChanged();
+
+        IsRunning = true;
+        Output = "";
+        cts = new CancellationTokenSource();
+
+        var request = new TestRunRequest(
+            SelectedBrowser,
+            @* SelectedHeaded, *@
+            SelectedDevice,
+            SelectedEnvironment,
+            SelectedSuite,
+            Headed: true
+        );
+
+        await foreach (var line in TestRunnerService.RunTestsAsync(request, cts.Token))
+        {
+            Output += line + "\n";
+            StateHasChanged();
+        }
+
+        IsRunning = false;
+    }
+
+    private void StopTests()
+    {
+        cts?.Cancel();
+    }
+}

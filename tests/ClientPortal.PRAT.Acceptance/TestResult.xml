@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<test-run id="0" runstate="Runnable" testcasecount="1" result="Failed" label="Error" total="1" passed="0" failed="1" warnings="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.22.0.0" clr-version="4.0.30319.42000" start-time="2026-04-13 14:16:36Z" end-time="2026-04-13 14:16:36Z" duration="0.019718">
+  <command-line><![CDATA[/Users/gragdad/Documents/development/GIT/ClientPortal.PRAT/tools/nunit-console/bin/net462/nunit3-console.exe /Users/gragdad/Documents/development/GIT/ClientPortal.PRAT/tests/ClientPortal.PRAT.Acceptance/bin/Debug/net10.0/ClientPortal.PRAT.Acceptance.dll --where "cat == Smoke" --labels=All --trace=Verbose]]></command-line>
+  <filter>
+    <cat>Smoke</cat>
+  </filter>
+  <test-suite type="Assembly" id="0" name="" fullname="" runstate="NotRunnable" testcasecount="1" result="Failed" label="Error" start-time="2026-04-13 14:16:36Z" end-time="2026-04-13 14:16:36Z" duration="0.001" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <failure>
+      <message><![CDATA[System.ArgumentException : The netcore-10.0 framework is not available for X86=False.
+Available frameworks: mono-4.0]]></message>
+      <stack-trace><![CDATA[--ArgumentException
+The netcore-10.0 framework is not available for X86=False.
+Available frameworks: mono-4.0
+  at NUnit.Engine.Services.TestAgency.GetAgent (NUnit.Engine.TestPackage package) [0x000ce] in <4032b9b472f2496b92a9b348a156386d>:0 
+  at NUnit.Engine.Runners.ProcessRunner.CreateAgentAndRunnerIfNeeded () [0x0003d] in <4032b9b472f2496b92a9b348a156386d>:0 
+  at NUnit.Engine.Runners.ProcessRunner.RunTests (NUnit.Engine.ITestEventListener listener, NUnit.Engine.TestFilter filter) [0x0001f] in <4032b9b472f2496b92a9b348a156386d>:0 
+]]></stack-trace>
+    </failure>
+  </test-suite>
+</test-run>
