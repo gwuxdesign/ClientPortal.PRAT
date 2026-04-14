@@ -4,6 +4,8 @@
 @page "/run-tests"
 @rendermode InteractiveServer
 
+@inject IJSRuntime JS
+
 <h3 class="mb-3">Run Automated Tests</h3>
 
 <div class="row g-3">
@@ -80,8 +82,8 @@
 
 <div class="mt-4">
     <h5>Output</h5>
-    <pre class="bg-dark text-light p-3 rounded" style="height: 750px; overflow-y: auto;">
-        @Output
+    <pre id="output-panel" class="bg-dark text-light p-3 rounded" style="height: 750px; overflow-y: auto;">
+        @string.Join("\n", OutputLines)
     </pre>
 </div>
 
@@ -101,42 +103,53 @@
     private string SelectedSuite = "Smoke";
 
     // Output + state
-    private string Output = "";
+    private readonly List<string> OutputLines = new();
+    private const int MaxLines = 2000;
     private bool IsRunning = false;
 
     [Inject] private ITestRunnerService TestRunnerService { get; set; } = default!;
     private CancellationTokenSource? cts;
-
-    private void TestClick()
-    {
-        Output = "BUTTON CLICKED\n";
-        StateHasChanged();
-    }
     private async Task RunTestsAsync()
     {
-        Output = "BUTTON CLICKED\n";
-        StateHasChanged();
-
         IsRunning = true;
-        Output = "";
+        OutputLines.Clear();
         cts = new CancellationTokenSource();
 
         var request = new TestRunRequest(
             SelectedBrowser,
-            @* SelectedHeaded, *@
             SelectedDevice,
             SelectedEnvironment,
             SelectedSuite,
             Headed: true
         );
 
-        await foreach (var line in TestRunnerService.RunTestsAsync(request, cts.Token))
+        try
         {
-            Output += line + "\n";
-            StateHasChanged();
+            await foreach (var line in TestRunnerService.RunTestsAsync(request, cts.Token))
+            {
+                OutputLines.Add(line);
+                if (OutputLines.Count > MaxLines)
+                    OutputLines.RemoveAt(0);
+                await InvokeAsync(StateHasChanged);
+                await JS.InvokeVoidAsync("scrollToBottom", "output-panel");
+                await Task.Yield();
+            }
         }
-
-        IsRunning = false;
+        catch (OperationCanceledException)
+        {
+            OutputLines.Add("--- Test run cancelled ---");
+        }
+        catch (Exception ex)
+        {
+            OutputLines.Add($"[ERROR] {ex.Message}");
+        }
+        finally
+        {
+            IsRunning = false;
+            cts?.Dispose();
+            cts = null;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void StopTests()

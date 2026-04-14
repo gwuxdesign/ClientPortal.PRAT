@@ -16,18 +16,9 @@
 
 <body>
     <Routes />
-
-    @* <Router AppAssembly="@typeof(App).Assembly">
-        <Found Context="routeData">
-            <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" @rendermode="InteractiveServer" />
-        </Found>
-        <NotFound>
-            <p>Sorry, there's nothing at this address.</p>
-        </NotFound>
-    </Router> *@
-
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="app.js"></script>
 </body>
 
 </html>
