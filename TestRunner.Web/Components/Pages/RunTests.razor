@@ -3,7 +3,6 @@
 
 @page "/run-tests"
 @rendermode InteractiveServer
-
 @inject IJSRuntime JS
 
 <h3 class="mb-3">Run Automated Tests</h3>
@@ -20,16 +19,6 @@
         </select>
     </div>
 
-    @* <div class="col-md-3">
-        <label class="form-label">Headed</label>
-        <select class="form-select" @bind="SelectedHeaded">
-            @foreach (var headed in Headed)
-            {
-                <option value="@headed">@headed</option>
-            }
-        </select>
-    </div> *@
-
     <div class="col-md-3">
         <label class="form-label">Device</label>
         <select class="form-select" @bind="SelectedDevice">
@@ -39,6 +28,14 @@
             }
         </select>
     </div>
+
+    @if (SelectedDevice == "Custom")
+    {
+        <div class="col-md-3">
+            <label class="form-label">Resolution (e.g. 2560x1440)</label>
+            <input type="text" class="form-control" @bind="CustomResolution" placeholder="WIDTHxHEIGHT" />
+        </div>
+    }
 
     <div class="col-md-3">
         <label class="form-label">Environment</label>
@@ -60,6 +57,16 @@
         </select>
     </div>
 
+    <div class="col-md-3">
+        <label class="form-label">Headed</label>
+        <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="headedSwitch" @bind="SelectedHeaded" />
+            <label class="form-check-label" for="headedSwitch">
+                @(SelectedHeaded ? "Headed" : "Headless")
+            </label>
+        </div>
+    </div>
+
 </div>
 
 <div class="mt-4">
@@ -67,7 +74,7 @@
         @if (IsRunning)
         {
             <span class="spinner-border spinner-border-sm me-2"></span>
-            <text>Running…</text>
+            <text>Running...</text>
         }
         else
         {
@@ -77,30 +84,28 @@
     <button class="btn btn-danger ms-2" @onclick="StopTests" disabled="@(!IsRunning)">
         Stop
     </button>
-
 </div>
 
 <div class="mt-4">
     <h5>Output</h5>
-    <pre id="output-panel" class="bg-dark text-light p-3 rounded" style="height: 750px; overflow-y: auto;">
-        @string.Join("\n", OutputLines)
-    </pre>
+    <pre id="output-panel" class="bg-dark text-light p-3 rounded"
+         style="height: 750px; overflow-y: auto;">@string.Join("\n", OutputLines)</pre>
 </div>
 
 @code {
     // Dropdown data
     private List<string> Browsers = new() { "chromium", "firefox", "webkit" };
-    @* private List<string> Headed = new() { "Yes", "No" }; *@
-    private List<string> Devices = new() { "Desktop", "Mobile", "Tablet Horizontal", "Tablet Vertical" };
-    private List<string> Environments = new() { "DEV", "QA", "REL", "UAT", "PROD" };
+    private List<string> Devices = new() { "Desktop", "Mobile", "TabletVer", "TabletHor", "Custom" };
+    private List<string> Environments = new() { "REL", "QA2", "DEV" };
     private List<string> Suites = new() { "Smoke", "Regression", "Full" };
 
     // Selected values
     private string SelectedBrowser = "chromium";
-    @* private string SelectedHeaded = "No"; *@
     private string SelectedDevice = "Desktop";
     private string SelectedEnvironment = "REL";
     private string SelectedSuite = "Smoke";
+    private bool SelectedHeaded = false;
+    private string CustomResolution = "";
 
     // Output + state
     private readonly List<string> OutputLines = new();
@@ -109,6 +114,7 @@
 
     [Inject] private ITestRunnerService TestRunnerService { get; set; } = default!;
     private CancellationTokenSource? cts;
+
     private async Task RunTestsAsync()
     {
         IsRunning = true;
@@ -120,7 +126,8 @@
             SelectedDevice,
             SelectedEnvironment,
             SelectedSuite,
-            Headed: true
+            SelectedHeaded,
+            CustomResolution: string.IsNullOrWhiteSpace(CustomResolution) ? null : CustomResolution
         );
 
         try

@@ -5,5 +5,6 @@ public record TestRunRequest(
     string Device,
     string Environment,
     string Suite,
-    bool Headed
+    bool Headed,
+    string? CustomResolution = null
 );

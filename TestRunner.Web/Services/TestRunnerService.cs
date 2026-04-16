@@ -11,6 +11,10 @@ public class TestRunnerService : ITestRunnerService
         TestRunRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var deviceType = request.Device == "Custom" && !string.IsNullOrEmpty(request.CustomResolution)
+            ? $"custom:{request.CustomResolution}"
+            : request.Device;
+
         var psi = new ProcessStartInfo
         {
             FileName = "dotnet",
@@ -22,10 +26,16 @@ public class TestRunnerService : ITestRunnerService
             CreateNoWindow = true
         };
 
+        psi.Environment["BROWSER"] = request.Browser;
+        psi.Environment["HEADED"] = request.Headed ? "1" : "0";
+        psi.Environment["DEVICE_TYPE"] = deviceType;
+        psi.Environment["ENVIRON"] = request.Environment;
+
         yield return "SERVICE CALLED";
         yield return $"Working directory: {psi.WorkingDirectory}";
         yield return $"Exists: {Directory.Exists(psi.WorkingDirectory)}";
         yield return $"Command: {psi.FileName} {psi.Arguments}";
+        yield return $"Browser: {request.Browser} | Headed: {request.Headed} | Device: {deviceType} | Environment: {request.Environment} | Suite: {request.Suite}";
 
         using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
 
@@ -40,34 +50,42 @@ public class TestRunnerService : ITestRunnerService
 
         var stdoutTask = Task.Run(async () =>
         {
-            var reader = process.StandardOutput;
             string? line;
-            while ((line = await reader.ReadLineAsync()) is not null)
-                await channel.Writer.WriteAsync(line, cancellationToken);
-        }, cancellationToken);
+            while ((line = await process.StandardOutput.ReadLineAsync()) is not null)
+                await channel.Writer.WriteAsync(line, CancellationToken.None);
+        }, CancellationToken.None);
 
         var stderrTask = Task.Run(async () =>
         {
-            var reader = process.StandardError;
             string? line;
-            while ((line = await reader.ReadLineAsync()) is not null)
-                await channel.Writer.WriteAsync("[ERR] " + line, cancellationToken);
-        }, cancellationToken);
+            while ((line = await process.StandardError.ReadLineAsync()) is not null)
+                await channel.Writer.WriteAsync("[ERR] " + line, CancellationToken.None);
+        }, CancellationToken.None);
 
         _ = Task.WhenAll(stdoutTask, stderrTask)
                 .ContinueWith(_ => channel.Writer.Complete(), TaskScheduler.Default);
 
-        await foreach (var line in channel.Reader.ReadAllAsync(cancellationToken))
+        var wasCancelled = false;
+
+        try
         {
-            if (cancellationToken.IsCancellationRequested)
+            await foreach (var line in channel.Reader.ReadAllAsync(cancellationToken))
+            {
+                yield return line;
+            }
+        }
+        finally
+        {
+            if (!process.HasExited)
             {
                 process.Kill(entireProcessTree: true);
-                yield break;
+                wasCancelled = true;
             }
-            yield return line;
+            await process.WaitForExitAsync(CancellationToken.None);
         }
 
-        await process.WaitForExitAsync(cancellationToken);
+        if (wasCancelled)
+            yield return "--- Test run cancelled ---";
 
         yield return "DONE";
     }
