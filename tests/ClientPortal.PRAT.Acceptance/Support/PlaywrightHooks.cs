@@ -37,7 +37,7 @@ namespace ClientPortal.PRAT.Acceptance.Support
                 Args = new[] { "--disable-dev-shm-usage" }
             });
 
-            var contextOptions = GetContextOptions();
+            var contextOptions = GetContextOptions(browserType);
             contextOptions.RecordVideoDir = "artifacts/videos";
 
             _world.Context = await _world.Browser.NewContextAsync(contextOptions);
@@ -140,11 +140,11 @@ namespace ClientPortal.PRAT.Acceptance.Support
             Console.Out.Flush();
         }
 
-        private BrowserNewContextOptions GetContextOptions()
+        private BrowserNewContextOptions GetContextOptions(string browserType)
         {
+            var ignoreHttpsErrors = browserType == "firefox";
             var deviceTypeValue = Environment.GetEnvironmentVariable("DEVICE_TYPE");
 
-            // Custom resolution: DEVICE_TYPE=custom:2560x1440
             if (!string.IsNullOrEmpty(deviceTypeValue) &&
                 deviceTypeValue.StartsWith("custom:", StringComparison.OrdinalIgnoreCase))
             {
@@ -159,7 +159,8 @@ namespace ClientPortal.PRAT.Acceptance.Support
                     {
                         ViewportSize = new ViewportSize { Width = width, Height = height },
                         DeviceScaleFactor = 1,
-                        IsMobile = false
+                        IsMobile = false,
+                        IgnoreHTTPSErrors = ignoreHttpsErrors
                     };
                 }
 
@@ -167,7 +168,6 @@ namespace ClientPortal.PRAT.Acceptance.Support
                     $"Invalid custom resolution format: {resolutionPart}. Expected WIDTHxHEIGHT (e.g., 2560x1440).");
             }
 
-            // Standard device profiles
             var deviceType = Enum.TryParse<DeviceType>(deviceTypeValue, true, out var parsedType)
                 ? parsedType
                 : DeviceType.Desktop;
@@ -178,28 +178,32 @@ namespace ClientPortal.PRAT.Acceptance.Support
                 {
                     ViewportSize = new ViewportSize { Width = 1920, Height = 1080 },
                     DeviceScaleFactor = 1,
-                    IsMobile = false
+                    IsMobile = false,
+                    IgnoreHTTPSErrors = ignoreHttpsErrors
                 },
                 DeviceType.Mobile => new BrowserNewContextOptions
                 {
                     ViewportSize = new ViewportSize { Width = 375, Height = 812 },
                     DeviceScaleFactor = 3,
                     IsMobile = true,
-                    HasTouch = true
+                    HasTouch = true,
+                    IgnoreHTTPSErrors = ignoreHttpsErrors
                 },
                 DeviceType.TabletVer => new BrowserNewContextOptions
                 {
                     ViewportSize = new ViewportSize { Width = 768, Height = 1024 },
                     DeviceScaleFactor = 2,
                     IsMobile = true,
-                    HasTouch = true
+                    HasTouch = true,
+                    IgnoreHTTPSErrors = ignoreHttpsErrors
                 },
                 DeviceType.TabletHor => new BrowserNewContextOptions
                 {
                     ViewportSize = new ViewportSize { Width = 1024, Height = 768 },
                     DeviceScaleFactor = 2,
                     IsMobile = true,
-                    HasTouch = true
+                    HasTouch = true,
+                    IgnoreHTTPSErrors = ignoreHttpsErrors
                 },
                 _ => throw new ArgumentOutOfRangeException()
             };
