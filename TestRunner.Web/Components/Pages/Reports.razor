@@ -1,0 +1,88 @@
+@using TestRunner.Web.Services
+@using TestRunner.Web.Models
+
+@page "/reports"
+@rendermode InteractiveServer
+
+<h3 class="mb-1">Test Reports</h3>
+
+@if (_index == null)
+{
+    <p class="text-muted mt-3">Loading reports...</p>
+}
+else if (_index.Count == 0)
+{
+    <p class="text-muted mt-3">No reports yet. Run a test suite to generate your first report.</p>
+}
+else
+{
+    <p class="text-muted mb-3">
+        Showing @_index.Count of @MaxReports maximum stored runs.
+        Oldest runs are automatically removed once the limit is reached.
+    </p>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Date &amp; Time</th>
+                    <th>Run By</th>
+                    <th>Suite</th>
+                    <th>Browser</th>
+                    <th>Device</th>
+                    <th>Environment</th>
+                    <th>Duration</th>
+                    <th>Results</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in _index)
+                {
+                    <tr>
+                        <td>@entry.RunAt.ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@entry.RunBy</td>
+                        <td><span class="badge bg-secondary">@entry.Suite</span></td>
+                        <td>@entry.Browser</td>
+                        <td>@entry.Device</td>
+                        <td>@entry.Environment</td>
+                        <td>@entry.DurationDisplay</td>
+                        <td>
+                            @if (entry.TotalPassed > 0)
+                            {
+                                <span class="badge bg-success me-1">✅ @entry.TotalPassed</span>
+                            }
+                            @if (entry.TotalFailed > 0)
+                            {
+                                <span class="badge bg-danger me-1">❌ @entry.TotalFailed</span>
+                            }
+                            @if (entry.TotalSkipped > 0)
+                            {
+                                <span class="badge bg-warning text-dark">⏭ @entry.TotalSkipped</span>
+                            }
+                        </td>
+                        <td>
+                            <a href="/reports/view/@entry.RunFolder/@entry.ReportFileName"
+                               target="_blank"
+                               class="btn btn-outline-primary btn-sm">
+                                📊 View
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Inject] private IReportService ReportService { get; set; } = default!;
+
+    private List<ReportIndexEntry>? _index;
+    private const int MaxReports = 20;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _index = await ReportService.GetReportIndexAsync();
+    }
+}

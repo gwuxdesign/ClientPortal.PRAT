@@ -14,6 +14,6 @@ public class NotificationsPage
 
     // Elements was in a generic div so had to use a combination of locators
     public ILocator _labelAdvisor => _page.Locator("aside.lg\\:w-80").GetByText("My adviser");
-    public ILocator _labelEmail => _page.Locator("li").Locator("div:has-text('Email')");
+    public ILocator _labelEmail => _page.Locator("li").Locator("div:has-text('Emails')");
     public ILocator _labelPhone => _page.Locator("li").Locator("div:has-text('Phone')");
 }

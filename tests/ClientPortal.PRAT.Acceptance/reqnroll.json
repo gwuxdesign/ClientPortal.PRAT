@@ -7,7 +7,8 @@
     "allowRowTests": true
   },
   "runtime": {
-    "stopAtFirstError": false
+    "stopAtFirstError": false,
+    "testThreadCount": 1
   },
   "reqnroll": {
     "tagMapping": {

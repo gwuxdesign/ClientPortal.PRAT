@@ -6,5 +6,8 @@ public record TestRunRequest(
     string Environment,
     string Suite,
     bool Headed,
+    bool RecordVideo,
+    bool RecordTraces,
+    string RunnerName,
     string? CustomResolution = null
 );
