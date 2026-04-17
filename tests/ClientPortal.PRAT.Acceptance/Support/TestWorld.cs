@@ -8,18 +8,19 @@ namespace ClientPortal.PRAT.Acceptance.Support
     public class TestWorld
     {
         // Playwright lifecycle members
-        public IPlaywright     Playwright { get; set; } = default!;
-        public IBrowser        Browser    { get; set; } = default!;
-        public IBrowserContext Context    { get; set; } = default!;
-        public IPage           Page       { get; set; } = default!;
+        public IPlaywright Playwright { get; set; } = default!;
+        public IBrowser Browser { get; set; } = default!;
+        public IBrowserContext Context { get; set; } = default!;
+        public IPage Page { get; set; } = default!;
 
         // Page aggregator
-        public PageImports     Pages      { get; set; } = default!;
+        public PageImports Pages { get; set; } = default!;
 
         // Configuration
-        public IConfiguration  Configuration { get; }
-        public string          EnvironmentName { get; }
-        public string          PortalUrl { get; }
+        public IConfiguration Configuration { get; }
+        public string EnvironmentName { get; }
+        public string PortalUrl { get; }
+        public string ScenarioSafeName { get; set; } = "";
 
         public TestWorld()
         {

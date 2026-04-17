@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Reqnroll;
 using Microsoft.Playwright;
@@ -12,135 +13,285 @@ namespace ClientPortal.PRAT.Acceptance.Support
 
         public PlaywrightHooks(TestWorld world) => _world = world;
 
-        // Run early so the world is ready before any steps execute
         [BeforeScenario(Order = -100)]
-        public async Task BeforeScenario()
+        public async Task BeforeScenario(ScenarioContext scenarioContext)
         {
             _world.Playwright = await Playwright.CreateAsync();
 
-            var headed = Environment.GetEnvironmentVariable("HEADED");
-            bool isHeaded = !string.IsNullOrEmpty(headed) && headed == "1";
+            var headed       = Environment.GetEnvironmentVariable("HEADED");
+            var browserType  = Environment.GetEnvironmentVariable("BROWSER")?.ToLower() ?? "chromium";
+            var recordVideo  = Environment.GetEnvironmentVariable("RECORD_VIDEO")  == "1";
+            var recordTraces = Environment.GetEnvironmentVariable("RECORD_TRACES") == "1";
 
-            var browserType = Environment.GetEnvironmentVariable("BROWSER")?.ToLower() ?? "chromium";
+            bool isHeaded = headed == "1";
 
             IBrowserType selectedBrowserType = browserType switch
             {
                 "firefox" => _world.Playwright.Firefox,
-                "webkit" => _world.Playwright.Webkit,
-                _ => _world.Playwright.Chromium
+                "webkit"  => _world.Playwright.Webkit,
+                _         => _world.Playwright.Chromium
             };
 
             _world.Browser = await selectedBrowserType.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = !isHeaded,
-                Args = new[] { "--disable-dev-shm-usage" } // CI stability on hosted agents
+                Args     = new[] { "--disable-dev-shm-usage" }
             });
 
-            var contextOptions = GetContextOptions();
-            _world.Context = await _world.Browser.NewContextAsync(contextOptions);
+            var contextOptions = GetContextOptions(browserType);
 
-            // Set a consistent default timeout if you like, keeps flaky waits down
+            // Always capture video so footage is available on failure even when toggle is off
+            // AfterScenario decides whether to keep or discard it
+            var artifactsBase = Environment.GetEnvironmentVariable("ARTIFACTS_BASE")
+                ?? AppContext.BaseDirectory;
+            var videoDir = Path.Combine(artifactsBase, "artifacts", "videos");
+            Directory.CreateDirectory(videoDir);
+            contextOptions.RecordVideoDir = videoDir;
+
+            _world.Context = await _world.Browser.NewContextAsync(contextOptions);
             _world.Context.SetDefaultTimeout(10000);
 
             _world.Page = await _world.Context.NewPageAsync();
 
-            // Optional: start tracing for each scenario, very helpful for failures
+            _world.Page.Console += (_, msg) =>
+            {
+                Console.WriteLine($"[BrowserConsole] {msg.Type}: {msg.Text}");
+                Console.Out.Flush();
+            };
+
+            _world.Page.RequestFailed += (_, req) =>
+            {
+                Console.WriteLine($"[RequestFailed] {req.Method} {req.Url} — {req.Failure}");
+                Console.Out.Flush();
+            };
+
+            // Always start tracing so data is available on failure even when toggle is off
+            // AfterScenario decides whether to keep or discard it
             await _world.Context.Tracing.StartAsync(new TracingStartOptions
             {
                 Screenshots = true,
-                Snapshots = true,
-                Sources = true
+                Snapshots   = true,
+                Sources     = true
             });
 
-            // Now that Page exists, wire up page objects
             _world.Pages = new PageImports(_world);
+
+            _world.ScenarioSafeName = GetScenarioSafeName(scenarioContext);
+
+            Console.WriteLine($"SCENARIO FILE: {_world.ScenarioSafeName}");
+            Console.WriteLine($"SCENARIO NAME: {scenarioContext.ScenarioInfo.Title}");
+            Console.WriteLine($"SCENARIO START: {scenarioContext.ScenarioInfo.Title}");
+            Console.Out.Flush();
+        }
+
+        [BeforeStep]
+        public void BeforeStep(ScenarioContext scenarioContext)
+        {
+            Console.WriteLine($"STEP START: {scenarioContext.StepContext.StepInfo.Text}");
+            Console.Out.Flush();
+        }
+
+        [AfterStep]
+        public void AfterStep(ScenarioContext scenarioContext)
+        {
+            Console.WriteLine($"STEP END: {scenarioContext.StepContext.StepInfo.Text}");
+            Console.Out.Flush();
         }
 
         [AfterScenario(Order = 100)]
         public async Task AfterScenario(ScenarioContext scenarioContext)
         {
-            var tracePath = $"artifacts/traces/{Sanitise(scenarioContext.ScenarioInfo.Title)}.zip";
-            await _world.Context.Tracing.StopAsync(new TracingStopOptions { Path = tracePath });
+            var safeName     = _world.ScenarioSafeName;
+            var recordVideo  = Environment.GetEnvironmentVariable("RECORD_VIDEO")  == "1";
+            var recordTraces = Environment.GetEnvironmentVariable("RECORD_TRACES") == "1";
+            var hasFailed    = scenarioContext.TestError != null;
 
-            if (_world.Context != null) await _world.Context.CloseAsync();
-            if (_world.Browser != null) await _world.Browser.CloseAsync();
-            _world.Playwright?.Dispose();
-        }
+            var artifactsBase = Environment.GetEnvironmentVariable("ARTIFACTS_BASE")
+                ?? AppContext.BaseDirectory;
 
-        private BrowserNewContextOptions GetContextOptions()
-        {
-
-            var deviceTypeValue = Environment.GetEnvironmentVariable("DEVICE_TYPE");
-
-            if (!string.IsNullOrEmpty(deviceTypeValue) && deviceTypeValue.StartsWith("custom:", StringComparison.OrdinalIgnoreCase))
+            // Stop tracing — always stop to finalise the file, then decide whether to keep it
+            string? rawTracePath = null;
+            try
             {
-                var resolutionPart = deviceTypeValue.Substring("custom:".Length);
-                var parts = resolutionPart.Split('x');
-
-                if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
+                if (_world.Context != null)
                 {
-                    return new BrowserNewContextOptions
+                    var tracesDir = Path.Combine(artifactsBase, "artifacts", "traces");
+                    Directory.CreateDirectory(tracesDir);
+                    rawTracePath = Path.Combine(tracesDir, $"{safeName}.zip");
+
+                    await _world.Context.Tracing.StopAsync(new TracingStopOptions
                     {
-                        ViewportSize = new ViewportSize { Width = width, Height = height },
-                        DeviceScaleFactor = 1,
-                        IsMobile = false
-                    };
+                        Path = rawTracePath
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TracingError] {ex.Message}");
+                rawTracePath = null;
+            }
+
+            // Get video path before closing context
+            string? rawVideoPath = null;
+            try
+            {
+                if (_world.Page?.Video != null)
+                    rawVideoPath = await _world.Page.Video.PathAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VideoError] Could not get video path: {ex.Message}");
+            }
+
+            // Decide on trace before closing — file is still valid at this point
+            var keepTrace = recordTraces || hasFailed;
+            if (rawTracePath != null && File.Exists(rawTracePath) && !keepTrace)
+            {
+                try { File.Delete(rawTracePath); } catch { }
+                rawTracePath = null;
+            }
+
+            // Now safe to close browser
+            try { if (_world.Context != null) await _world.Context.CloseAsync(); } catch { }
+            try { if (_world.Browser != null) await _world.Browser.CloseAsync(); } catch { }
+            try { _world.Playwright?.Dispose(); } catch { }
+
+            // Handle video after browser is closed
+            if (rawVideoPath != null && File.Exists(rawVideoPath))
+            {
+                if (recordVideo || hasFailed)
+                {
+                    try
+                    {
+                        var videosDir = Path.Combine(artifactsBase, "artifacts", "videos");
+                        Directory.CreateDirectory(videosDir);
+                        var dest = Path.Combine(videosDir, $"{safeName}.webm");
+                        File.Move(rawVideoPath, dest, overwrite: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[VideoError] Could not save video: {ex.Message}");
+                    }
                 }
                 else
                 {
-                    throw new ArgumentException($"Invalid custom resolution format: {resolutionPart}. Expected format: WIDTHxHEIGHT (e.g., 2560x1440).");
+                    try { File.Delete(rawVideoPath); } catch { }
                 }
             }
 
+            if (hasFailed)
+            {
+                Console.WriteLine($"SCENARIO ERROR: {scenarioContext.TestError!.Message}");
+                Console.Out.Flush();
+            }
+
+            Console.WriteLine($"SCENARIO END: {scenarioContext.ScenarioInfo.Title}");
+            Console.Out.Flush();
+        }
+
+        private static BrowserNewContextOptions GetContextOptions(string browserType)
+        {
+            var ignoreHttpsErrors = browserType == "firefox";
+            var deviceTypeValue   = Environment.GetEnvironmentVariable("DEVICE_TYPE");
+
+            if (!string.IsNullOrEmpty(deviceTypeValue) &&
+                deviceTypeValue.StartsWith("custom:", StringComparison.OrdinalIgnoreCase))
+            {
+                var resolutionPart = deviceTypeValue["custom:".Length..];
+                var parts = resolutionPart.Split('x');
+
+                if (parts.Length == 2 &&
+                    int.TryParse(parts[0], out var width) &&
+                    int.TryParse(parts[1], out var height))
+                {
+                    return new BrowserNewContextOptions
+                    {
+                        ViewportSize      = new ViewportSize { Width = width, Height = height },
+                        DeviceScaleFactor = 1,
+                        IsMobile          = false,
+                        IgnoreHTTPSErrors = ignoreHttpsErrors
+                    };
+                }
+
+                throw new ArgumentException(
+                    $"Invalid custom resolution format: {resolutionPart}. Expected WIDTHxHEIGHT (e.g., 2560x1440).");
+            }
+
             var deviceType = Enum.TryParse<DeviceType>(deviceTypeValue, true, out var parsedType)
-                    ? parsedType
-                    : DeviceType.Desktop;
+                ? parsedType
+                : DeviceType.Desktop;
 
             return deviceType switch
             {
                 DeviceType.Desktop => new BrowserNewContextOptions
                 {
-                    ViewportSize = new ViewportSize { Width = 1920, Height = 1080 },
+                    ViewportSize      = new ViewportSize { Width = 1920, Height = 1080 },
                     DeviceScaleFactor = 1,
-                    IsMobile = false
+                    IsMobile          = false,
+                    IgnoreHTTPSErrors = ignoreHttpsErrors
                 },
                 DeviceType.Mobile => new BrowserNewContextOptions
                 {
-                    ViewportSize = new ViewportSize { Width = 375, Height = 812 },
+                    ViewportSize      = new ViewportSize { Width = 375, Height = 812 },
                     DeviceScaleFactor = 3,
-                    IsMobile = true,
-                    HasTouch = true
+                    IsMobile          = true,
+                    HasTouch          = true,
+                    IgnoreHTTPSErrors = ignoreHttpsErrors
                 },
                 DeviceType.TabletVer => new BrowserNewContextOptions
                 {
-                    ViewportSize = new ViewportSize { Width = 768, Height = 1024 },
+                    ViewportSize      = new ViewportSize { Width = 768, Height = 1024 },
                     DeviceScaleFactor = 2,
-                    IsMobile = true,
-                    HasTouch = true
+                    IsMobile          = true,
+                    HasTouch          = true,
+                    IgnoreHTTPSErrors = ignoreHttpsErrors
                 },
                 DeviceType.TabletHor => new BrowserNewContextOptions
                 {
-                    ViewportSize = new ViewportSize { Width = 1024, Height = 768 },
+                    ViewportSize      = new ViewportSize { Width = 1024, Height = 768 },
                     DeviceScaleFactor = 2,
-                    IsMobile = true,
-                    HasTouch = true
+                    IsMobile          = true,
+                    HasTouch          = true,
+                    IgnoreHTTPSErrors = ignoreHttpsErrors
                 },
                 _ => throw new ArgumentOutOfRangeException()
             };
         }
 
-        private static DeviceType GetDeviceType()
+        private static string GetScenarioSafeName(ScenarioContext scenarioContext)
         {
-            var value = Environment.GetEnvironmentVariable("DEVICE_TYPE");
-            return Enum.TryParse<DeviceType>(value, true, out var deviceType)
-                ? deviceType
-                : DeviceType.Desktop;
+            var title     = scenarioContext.ScenarioInfo.Title;
+            var arguments = scenarioContext.ScenarioInfo.Arguments;
+
+            if (arguments != null && arguments.Count > 0)
+            {
+                var parts = new List<string>();
+                foreach (var value in arguments.Values)
+                    parts.Add(value?.ToString() ?? "null");
+
+                title = $"{title}_{string.Join("_", parts)}";
+            }
+
+            return Sanitise(title);
         }
 
         private static string Sanitise(string name)
         {
-            foreach (var c in System.IO.Path.GetInvalidFileNameChars())
+            foreach (var c in Path.GetInvalidFileNameChars())
                 name = name.Replace(c, '_');
+
+            name = name.Replace('"', '_')
+                       .Replace('\'', '_')
+                       .Replace(',', '_')
+                       .Replace('(', '_')
+                       .Replace(')', '_')
+                       .Replace(' ', '_');
+
+            while (name.Contains("__"))
+                name = name.Replace("__", "_");
+
+            name = name.Trim('_');
+
             return name;
         }
     }
@@ -150,7 +301,6 @@ namespace ClientPortal.PRAT.Acceptance.Support
         Desktop,
         Mobile,
         TabletVer,
-
         TabletHor
     }
 }

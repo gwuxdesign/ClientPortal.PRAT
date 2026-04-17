@@ -32,8 +32,6 @@ namespace ClientPortal.PRAT.Tests.StepDefinitions
             await Expect(_world.Pages.notifPage._labelAdvisor).ToBeVisibleAsync();
             await Expect(_world.Pages.notifPage._labelEmail).ToBeVisibleAsync();
             await Expect(_world.Pages.notifPage._labelPhone).ToBeVisibleAsync();
-
         }
-
     }
 }

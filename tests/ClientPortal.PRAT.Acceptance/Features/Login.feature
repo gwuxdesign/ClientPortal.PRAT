@@ -6,7 +6,7 @@ Feature: Login
   Background:
     Given the user navigates to the Client Portal
 
-  @Smoke
+  @Smoke @Login
   Scenario Outline: Login functionality with validation
     Given the user enters "<login>" credentials
     When the user submits the login form

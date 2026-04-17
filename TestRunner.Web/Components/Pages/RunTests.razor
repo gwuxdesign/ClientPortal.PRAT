@@ -1,0 +1,245 @@
+@using TestRunner.Web.Services
+@using TestRunner.Web.Models
+
+@page "/run-tests"
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+<h3 class="mb-3">Run Automated Tests</h3>
+
+<div class="row g-3">
+
+    <div class="col-md-3">
+        <label class="form-label">Your Name <span class="text-danger">*</span></label>
+        <input type="text" class="form-control @(ShowValidation && string.IsNullOrWhiteSpace(RunnerName) ? "is-invalid" : "")"
+               @bind="RunnerName" placeholder="Enter your name" />
+        @if (ShowValidation && string.IsNullOrWhiteSpace(RunnerName))
+        {
+            <div class="invalid-feedback">Name is required before running tests.</div>
+        }
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Browser</label>
+        <select class="form-select" @bind="SelectedBrowser">
+            @foreach (var browser in Browsers)
+            {
+                <option value="@browser">@browser</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Device</label>
+        <select class="form-select" @bind="SelectedDevice">
+            @foreach (var device in Devices)
+            {
+                <option value="@device">@device</option>
+            }
+        </select>
+    </div>
+
+    @if (SelectedDevice == "Custom")
+    {
+        <div class="col-md-3">
+            <label class="form-label">Resolution (e.g. 2560x1440)</label>
+            <input type="text" class="form-control" @bind="CustomResolution" placeholder="WIDTHxHEIGHT" />
+        </div>
+    }
+
+    <div class="col-md-3">
+        <label class="form-label">Environment</label>
+        <select class="form-select" @bind="SelectedEnvironment">
+            @foreach (var env in Environments)
+            {
+                <option value="@env">@env</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Suite</label>
+        <select class="form-select" @bind="SelectedSuite">
+            @foreach (var suite in Suites)
+            {
+                <option value="@suite">@suite</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Headed</label>
+        <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="headedSwitch" @bind="SelectedHeaded" />
+            <label class="form-check-label" for="headedSwitch">
+                @(SelectedHeaded ? "Headed" : "Headless")
+            </label>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Record Video</label>
+        <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="videoSwitch" @bind="RecordVideo" />
+            <label class="form-check-label" for="videoSwitch">
+                @(RecordVideo ? "Enabled" : "Disabled")
+            </label>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Record Traces</label>
+        <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="tracesSwitch" @bind="RecordTraces" />
+            <label class="form-check-label" for="tracesSwitch">
+                @(RecordTraces ? "Enabled" : "Disabled")
+            </label>
+        </div>
+    </div>
+
+</div>
+
+<div class="mt-4">
+    <button class="btn btn-primary" @onclick="RunTestsAsync" disabled="@IsRunning">
+        @if (IsRunning)
+        {
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            <text>Running...</text>
+        }
+        else
+        {
+            <span>Run Tests</span>
+        }
+    </button>
+    <button class="btn btn-danger ms-2" @onclick="StopTests" disabled="@(!IsRunning)">
+        Stop
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(LastReportFileName))
+{
+    <div class="mt-3">
+        <a href="/reports/view/@LastReportFileName" target="_blank" class="btn btn-outline-success btn-sm">
+            📊 View Test Report
+        </a>
+    </div>
+}
+
+<div class="mt-4">
+    <h5>Output</h5>
+    <pre id="output-panel" class="bg-dark text-light p-3 rounded" style="height: 750px; overflow-y: auto;">@string.Join("\n", OutputLines)</pre>
+</div>
+
+@code {
+    // Dropdown data
+    private List<string> Browsers     = new() { "chromium", "firefox", "webkit" };
+    private List<string> Devices      = new() { "Desktop", "Mobile", "TabletVer", "TabletHor", "Custom" };
+    private List<string> Environments = new() { "REL", "QA2", "DEV" };
+    private List<string> Suites       = new() { "Smoke", "Regression", "Full" };
+
+    // Selected values
+    private string RunnerName          = "";
+    private string SelectedBrowser     = "chromium";
+    private string SelectedDevice      = "Desktop";
+    private string SelectedEnvironment = "REL";
+    private string SelectedSuite       = "Smoke";
+    private bool   SelectedHeaded      = false;
+    private bool   RecordVideo         = false;
+    private bool   RecordTraces        = false;
+    private string CustomResolution    = "";
+
+    // State
+    private readonly List<string> OutputLines = new();
+    private const int MaxLines = 2000;
+    private bool IsRunning = false;
+    private bool ShowValidation = false;
+    private string? LastReportFileName = null;
+
+    [Inject] private ITestRunnerService TestRunnerService { get; set; } = default!;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var saved = await JS.InvokeAsync<string?>("localStorage.getItem", "prat-runner-name");
+            if (!string.IsNullOrWhiteSpace(saved))
+            {
+                RunnerName = saved;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private async Task RunTestsAsync()
+    {
+        ShowValidation = true;
+
+        if (string.IsNullOrWhiteSpace(RunnerName))
+        {
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        await JS.InvokeVoidAsync("localStorage.setItem", "prat-runner-name", RunnerName.Trim());
+
+        IsRunning = true;
+        LastReportFileName = null;
+        OutputLines.Clear();
+        cts = new CancellationTokenSource();
+
+        var request = new TestRunRequest(
+            SelectedBrowser,
+            SelectedDevice,
+            SelectedEnvironment,
+            SelectedSuite,
+            SelectedHeaded,
+            RecordVideo,
+            RecordTraces,
+            RunnerName.Trim(),
+            CustomResolution: string.IsNullOrWhiteSpace(CustomResolution) ? null : CustomResolution
+        );
+
+        try
+        {
+            await foreach (var line in TestRunnerService.RunTestsAsync(request, cts.Token))
+            {
+                if (line.StartsWith("REPORT:"))
+                {
+                    LastReportFileName = line["REPORT:".Length..];
+                    continue;
+                }
+
+                OutputLines.Add(line);
+                if (OutputLines.Count > MaxLines)
+                    OutputLines.RemoveAt(0);
+                await InvokeAsync(StateHasChanged);
+                await JS.InvokeVoidAsync("scrollToBottom", "output-panel");
+                await Task.Yield();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            OutputLines.Add("--- Test run cancelled ---");
+        }
+        catch (Exception ex)
+        {
+            OutputLines.Add($"[ERROR] {ex.Message}");
+        }
+        finally
+        {
+            IsRunning = false;
+            cts?.Dispose();
+            cts = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void StopTests()
+    {
+        cts?.Cancel();
+    }
+}
