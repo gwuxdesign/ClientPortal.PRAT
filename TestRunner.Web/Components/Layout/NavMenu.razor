@@ -1,4 +1,7 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">TestRunner.Web</a>
     </div>
@@ -22,8 +25,42 @@
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="reports">
-                <span class="bi bi-file-earmark-bar-graph-fill-nav-menu" aria-hidden="true"></span> Reports
+                <span class="bi bi-bar-chart-fill-nav-menu" aria-hidden="true"></span> Reports
             </NavLink>
+        </div>
+
+        <div class="nav-item px-3 mt-auto">
+            <div class="theme-switch-wrapper"
+                 title="@(_isDark ? "Switch to light mode" : "Switch to dark mode")"
+                 @onclick="ToggleTheme">
+                <span class="theme-icon">☀</span>
+                <div class="theme-switch @(_isDark ? "" : "is-light")">
+                    <div class="theme-switch-thumb"></div>
+                </div>
+                <span class="theme-icon">◑</span>
+            </div>
         </div>
     </nav>
 </div>
+
+@code {
+    private bool _isDark = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await JS.InvokeVoidAsync("applyTheme");
+
+        if (firstRender)
+        {
+            var theme = await JS.InvokeAsync<string>("getTheme");
+            _isDark = theme == "dark";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ToggleTheme()
+    {
+        var next = await JS.InvokeAsync<string>("toggleTheme");
+        _isDark = next == "dark";
+    }
+}

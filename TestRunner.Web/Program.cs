@@ -28,14 +28,26 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 app.UseAntiforgery();
 app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+
+// Serve report HTML files directly so scripts execute correctly
+app.MapGet("/reports/view/{runId}/{fileName}",
+    async (string runId, string fileName, IReportService reportService, HttpContext ctx) =>
+    {
+        if (runId.Contains('/') || runId.Contains('\\') ||
+            fileName.Contains('/') || fileName.Contains('\\') ||
+            !fileName.EndsWith(".html"))
+            return Results.BadRequest();
+
+        var path = Path.Combine(reportService.GetReportsDirectory(), runId, fileName);
+        if (!File.Exists(path)) return Results.NotFound();
+
+        return Results.File(path, "text/html; charset=utf-8");
+    });
 
 // Serve artifacts (videos, traces) from per-run folders
 app.MapGet("/reports/artifact/{runId}/{fileName}",
     async (string runId, string fileName, IReportService reportService, HttpContext ctx) =>
     {
-        // Guard against path traversal
         if (runId.Contains('/') || runId.Contains('\\') ||
             fileName.Contains('/') || fileName.Contains('\\'))
             return Results.BadRequest();
@@ -53,5 +65,8 @@ app.MapGet("/reports/artifact/{runId}/{fileName}",
 
         return Results.File(path, contentType, enableRangeProcessing: true);
     });
+
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
 
 app.Run();
