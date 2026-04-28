@@ -70,20 +70,20 @@ public class ReportService : IReportService
 
             index.Insert(0, new ReportIndexEntry
             {
-                Id              = report.Id,
-                RunId           = runId,
-                RunAt           = report.RunAt,
-                RunBy           = report.RunBy,
-                Browser         = report.Browser,
-                Device          = report.Device,
-                Environment     = report.Environment,
-                Suite           = report.Suite,
-                TotalPassed     = report.TotalPassed,
-                TotalFailed     = report.TotalFailed,
-                TotalSkipped    = report.TotalSkipped,
+                Id = report.Id,
+                RunId = runId,
+                RunAt = report.RunAt,
+                RunBy = report.RunBy,
+                Browser = report.Browser,
+                Device = report.Device,
+                Environment = report.Environment,
+                Suite = report.Suite,
+                TotalPassed = report.TotalPassed,
+                TotalFailed = report.TotalFailed,
+                TotalSkipped = report.TotalSkipped,
                 DurationDisplay = FormatDuration(report.TotalDuration),
-                ReportFileName  = report.ReportFileName,
-                RunFolder       = runId
+                ReportFileName = report.ReportFileName,
+                RunFolder = runId
             });
 
             await File.WriteAllTextAsync(
@@ -137,17 +137,17 @@ public class ReportService : IReportService
         var id = Path.GetFileNameWithoutExtension(reportFileName);
         var report = new TestRunReport
         {
-            Id             = id,
-            RunAt          = DateTime.Now,
-            RunBy          = request.RunnerName,
-            Browser        = request.Browser,
-            Device         = request.Device,
-            Environment    = request.Environment,
-            Suite          = request.Suite,
-            Headed         = request.Headed,
-            RecordVideo    = request.RecordVideo,
+            Id = id,
+            RunAt = DateTime.Now,
+            RunBy = request.RunnerName,
+            Browser = request.Browser,
+            Device = request.Device,
+            Environment = request.Environment,
+            Suite = request.Suite,
+            Headed = request.Headed,
+            RecordVideo = request.RecordVideo,
             ReportFileName = reportFileName,
-            TrxFileName    = Path.GetFileName(trxPath)
+            TrxFileName = Path.GetFileName(trxPath)
         };
 
         if (!File.Exists(trxPath))
@@ -156,39 +156,28 @@ public class ReportService : IReportService
         var doc = XDocument.Load(trxPath);
         XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
 
-        // Parse run-level times
         var times = doc.Descendants(ns + "Times").FirstOrDefault();
         if (times != null &&
             DateTime.TryParse(times.Attribute("start")?.Value, out var start) &&
             DateTime.TryParse(times.Attribute("finish")?.Value, out var finish))
         {
-            report.RunAt         = start;
+            report.RunAt = start;
             report.TotalDuration = finish - start;
         }
 
-        // Parse counters
         var counters = doc.Descendants(ns + "Counters").FirstOrDefault();
         if (counters != null)
         {
-            report.TotalPassed  = int.TryParse(counters.Attribute("passed")?.Value,      out var p) ? p : 0;
-            report.TotalFailed  = int.TryParse(counters.Attribute("failed")?.Value,      out var f) ? f : 0;
+            report.TotalPassed = int.TryParse(counters.Attribute("passed")?.Value, out var p) ? p : 0;
+            report.TotalFailed = int.TryParse(counters.Attribute("failed")?.Value, out var f) ? f : 0;
             report.TotalSkipped = int.TryParse(counters.Attribute("notExecuted")?.Value, out var s) ? s : 0;
         }
 
-        // Parse console output — steps and ordered scenario filenames
         var stepsByScenario = ParseStepsFromConsole(consoleOutput);
-        var scenarioFiles   = ParseScenarioFileNames(consoleOutput);
-
-        // Parse TRX results — these come in an arbitrary order
-        // We need to reorder them to match console execution order before
-        // assigning artifact filenames positionally
+        var scenarioFiles = ParseScenarioFileNames(consoleOutput);
         var rawResults = doc.Descendants(ns + "UnitTestResult").ToList();
-
-        // Build execution order from console output using SCENARIO NAME lines
-        // Map: TRX testName → position in console execution order
         var executionOrder = BuildExecutionOrder(consoleOutput, rawResults, ns, doc);
 
-        // Sort TRX results by execution order
         var orderedResults = rawResults
             .OrderBy(r => executionOrder.TryGetValue(
                 r.Attribute("testName")?.Value ?? "", out var pos) ? pos : int.MaxValue)
@@ -198,16 +187,15 @@ public class ReportService : IReportService
         {
             var result = orderedResults[i];
 
-            var name     = result.Attribute("testName")?.Value ?? "Unknown";
-            var outcome  = result.Attribute("outcome")?.Value  ?? "Unknown";
+            var name = result.Attribute("testName")?.Value ?? "Unknown";
+            var outcome = result.Attribute("outcome")?.Value ?? "Unknown";
             var duration = TimeSpan.TryParse(result.Attribute("duration")?.Value, out var d)
                 ? d : TimeSpan.Zero;
 
-            var errorInfo    = result.Descendants(ns + "ErrorInfo").FirstOrDefault();
+            var errorInfo = result.Descendants(ns + "ErrorInfo").FirstOrDefault();
             var errorMessage = errorInfo?.Element(ns + "Message")?.Value;
-            var stackTrace   = errorInfo?.Element(ns + "StackTrace")?.Value;
+            var stackTrace = errorInfo?.Element(ns + "StackTrace")?.Value;
 
-            // Positional match — scenario i in execution order → file i
             var matchedFileName = i < scenarioFiles.Count
                 ? scenarioFiles[i]
                 : SanitiseFileName(name);
@@ -217,14 +205,14 @@ public class ReportService : IReportService
 
             var scenario = new TestScenarioResult
             {
-                Name         = name,
-                Outcome      = outcome,
-                Duration     = duration,
+                Name = name,
+                Outcome = outcome,
+                Duration = duration,
                 ErrorMessage = errorMessage,
-                StackTrace   = stackTrace,
-                TraceFile    = File.Exists(traceFile) ? $"{matchedFileName}.zip" : null,
-                VideoFile    = File.Exists(videoFile) ? $"{matchedFileName}.webm" : null,
-                Steps        = stepsByScenario.TryGetValue(name, out var steps)
+                StackTrace = stackTrace,
+                TraceFile = File.Exists(traceFile) ? $"{matchedFileName}.zip" : null,
+                VideoFile = File.Exists(videoFile) ? $"{matchedFileName}.webm" : null,
+                Steps = stepsByScenario.TryGetValue(name, out var steps)
                                ? steps : new List<string>()
             };
 
@@ -234,15 +222,12 @@ public class ReportService : IReportService
         return report;
     }
 
-    // Builds a map of TRX testName → execution position
-    // by correlating SCENARIO NAME console lines with TRX test definitions
     private static Dictionary<string, int> BuildExecutionOrder(
         string consoleOutput,
         List<XElement> results,
         XNamespace ns,
         XDocument doc)
     {
-        // Extract scenario titles in execution order from console output
         var executionTitles = new List<string>();
         foreach (var line in consoleOutput.Split('\n'))
         {
@@ -251,36 +236,23 @@ public class ReportService : IReportService
                 executionTitles.Add(trimmed["SCENARIO NAME: ".Length..].Trim());
         }
 
-        // For each TRX result, find its position in executionTitles
-        // by matching on the scenario title embedded in the test name
-        // TRX names are like NavigationAfterLogin("My notifications","0",null)
-        // Titles are like "Navigation after login"
-        // We match by normalising both to lowercase without spaces/punctuation
         var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-        // Track which execution positions have been claimed
         var claimed = new HashSet<int>();
 
         foreach (var result in results)
         {
             var testName = result.Attribute("testName")?.Value ?? "";
-
-            // Extract just the method name portion (before the opening paren)
-            var parenIdx   = testName.IndexOf('(');
+            var parenIdx = testName.IndexOf('(');
             var methodName = parenIdx >= 0 ? testName[..parenIdx] : testName;
             var methodNorm = Normalise(methodName);
 
-            // Find the matching execution position
             for (var i = 0; i < executionTitles.Count; i++)
             {
                 if (claimed.Contains(i)) continue;
 
                 var titleNorm = Normalise(executionTitles[i]);
-
-                // Match: normalised method name should equal normalised title
                 if (methodNorm.Equals(titleNorm, StringComparison.OrdinalIgnoreCase))
                 {
-                    // Also verify argument values match if present
                     if (ArgumentsMatch(testName, executionTitles[i], consoleOutput, i))
                     {
                         order[testName] = i;
@@ -294,7 +266,6 @@ public class ReportService : IReportService
         return order;
     }
 
-    // Normalises a string to lowercase letters and digits only for comparison
     private static string Normalise(string input)
     {
         var sb = new StringBuilder();
@@ -304,28 +275,23 @@ public class ReportService : IReportService
         return sb.ToString();
     }
 
-    // Verifies that the TRX test arguments match the scenario at executionIndex
-    // by checking the SCENARIO FILE line recorded for that execution position
     private static bool ArgumentsMatch(
         string trxTestName,
         string scenarioTitle,
         string consoleOutput,
         int executionIndex)
     {
-        // Extract args from TRX name
         var parenOpen = trxTestName.IndexOf('(');
-        if (parenOpen < 0) return true; // no args, title match is sufficient
+        if (parenOpen < 0) return true;
 
         var argsPart = trxTestName[(parenOpen + 1)..].TrimEnd(')');
-        var trxArgs  = ParseArgs(argsPart);
+        var trxArgs = ParseArgs(argsPart);
 
-        // Drop last two (row index and null tags added by Reqnroll in TRX)
         if (trxArgs.Count >= 2)
             trxArgs = trxArgs.Take(trxArgs.Count - 2).ToList();
 
         if (trxArgs.Count == 0) return true;
 
-        // Find the SCENARIO FILE line at this execution index
         var fileLines = new List<string>();
         foreach (var line in consoleOutput.Split('\n'))
         {
@@ -337,9 +303,6 @@ public class ReportService : IReportService
         if (executionIndex >= fileLines.Count) return false;
 
         var fileName = fileLines[executionIndex];
-
-        // The filename contains the sanitised args appended to the title
-        // Check that each TRX arg appears in the filename (sanitised)
         foreach (var arg in trxArgs)
         {
             var sanitisedArg = SanitiseFileName(arg);
@@ -352,8 +315,8 @@ public class ReportService : IReportService
 
     private static List<string> ParseArgs(string argsPart)
     {
-        var args    = new List<string>();
-        var depth   = 0;
+        var args = new List<string>();
+        var depth = 0;
         var current = new StringBuilder();
 
         foreach (var c in argsPart)
@@ -374,11 +337,9 @@ public class ReportService : IReportService
         return args;
     }
 
-    // Returns SCENARIO FILE lines in execution order
     private static List<string> ParseScenarioFileNames(string consoleOutput)
     {
         var result = new List<string>();
-        var seen   = new HashSet<string>();
 
         foreach (var line in consoleOutput.Split('\n'))
         {
@@ -386,8 +347,6 @@ public class ReportService : IReportService
             if (!trimmed.StartsWith("SCENARIO FILE: ")) continue;
 
             var fileName = trimmed["SCENARIO FILE: ".Length..].Trim();
-
-            // Deduplicate consecutive entries (defensive against parallel runners)
             if (result.Count == 0 || result[^1] != fileName)
                 result.Add(fileName);
         }
@@ -446,7 +405,6 @@ public class ReportService : IReportService
 
     private string BuildHtml(TestRunReport report, string runId)
     {
-        // Sort for display only — artifact matching already done during ParseTrx
         var sortedScenarios = report.Scenarios
             .OrderByDescending(s => s.Duration)
             .ToList();
@@ -455,25 +413,32 @@ public class ReportService : IReportService
 
         sb.AppendLine($$"""
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Test Report — {{report.Suite}} — {{report.RunAt:dd MMM yyyy HH:mm}}</title>
+<script>
+  // Inherit theme from localStorage so report matches app theme
+  (function() {
+    var theme = localStorage.getItem('prat-theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
 <style>
   :root[data-theme="dark"] {
     --bg: #0f1117; --bg2: #1a1d27; --bg3: #22263a;
     --border: #2e3250; --text: #e8eaf6; --text2: #9096b8;
     --pass: #4caf7d; --fail: #f05454; --skip: #f0a154;
     --pass-bg: rgba(76,175,125,0.12); --fail-bg: rgba(240,84,84,0.12); --skip-bg: rgba(240,161,84,0.12);
-    --accent: #7c83ff; --shadow: rgba(0,0,0,0.4);
+    --accent: #7c83ff;
   }
   :root[data-theme="light"] {
     --bg: #f4f6fb; --bg2: #ffffff; --bg3: #edf0fa;
     --border: #d0d5ea; --text: #1a1d2e; --text2: #5a607a;
     --pass: #2e7d52; --fail: #c62828; --skip: #b35c00;
     --pass-bg: rgba(46,125,82,0.1); --fail-bg: rgba(198,40,40,0.1); --skip-bg: rgba(179,92,0,0.1);
-    --accent: #4a52d9; --shadow: rgba(0,0,0,0.08);
+    --accent: #4a52d9;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
@@ -481,10 +446,7 @@ public class ReportService : IReportService
   header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
   .header-title h1 { font-size: 22px; font-weight: 700; color: var(--text); }
   .header-title p { color: var(--text2); margin-top: 4px; font-size: 13px; }
-  .header-actions { display: flex; gap: 10px; align-items: center; }
-  .theme-toggle { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
-  .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
-  .back-link { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 13px; text-decoration: none; transition: all 0.2s; }
+  .back-link { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 6px 14px; border-radius: 20px; font-size: 13px; text-decoration: none; transition: all 0.2s; }
   .back-link:hover { color: var(--text); border-color: var(--accent); }
   .summary-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
   .summary-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
@@ -512,7 +474,7 @@ public class ReportService : IReportService
   tbody tr:hover { background: var(--bg3); }
   tbody td { padding: 12px 16px; vertical-align: top; }
   .scenario-name { font-weight: 500; }
-  .slowest-tag { background: var(--bg3); color: var(--accent); font-size: 10px; padding: 1px 7px; border-radius: 8px; margin-left: 8px; font-weight: 600; letter-spacing: 0.04em; }
+  .slowest-tag { background: var(--bg3); color: var(--accent); font-size: 10px; padding: 1px 7px; border-radius: 8px; margin-left: 8px; font-weight: 600; }
   .duration { color: var(--text2); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .expand-btn { background: none; border: 1px solid var(--border); color: var(--text2); padding: 3px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
   .expand-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -527,7 +489,6 @@ public class ReportService : IReportService
   .steps-list { list-style: none; }
   .steps-list li { padding: 3px 0; font-size: 13px; color: var(--text2); }
   .steps-list li::before { content: '→ '; color: var(--accent); }
-  .links-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
   .artifact-link { display: inline-flex; align-items: center; gap: 5px; background: var(--bg2); border: 1px solid var(--border); color: var(--accent); padding: 4px 12px; border-radius: 6px; font-size: 12px; text-decoration: none; transition: all 0.15s; }
   .artifact-link:hover { border-color: var(--accent); background: var(--bg3); }
   video { width: 100%; border-radius: 6px; margin-top: 8px; background: #000; max-height: 400px; }
@@ -541,9 +502,9 @@ public class ReportService : IReportService
       <h1>Test Report — {{report.Suite}} Suite</h1>
       <p>{{report.RunAt:dddd dd MMMM yyyy}} at {{report.RunAt:HH:mm:ss}} &nbsp;·&nbsp; Run by {{report.RunBy}}</p>
     </div>
-    <div class="header-actions">
+    <div style="display:flex;gap:10px;align-items:center;">
       <a class="back-link" href="/reports">← All Reports</a>
-      <button class="theme-toggle" onclick="toggleTheme()">☀ Light / ◑ Dark</button>
+      <button class="back-link" onclick="toggleTheme()" style="cursor:pointer;border:1px solid var(--border);">☀ / ◑</button>
     </div>
   </header>
 
@@ -601,12 +562,12 @@ public class ReportService : IReportService
 
         for (var i = 0; i < sortedScenarios.Count; i++)
         {
-            var s          = sortedScenarios[i];
-            var isSlowest  = slowest != null && s.Name == slowest.Name;
+            var s = sortedScenarios[i];
+            var isSlowest = slowest != null && s.Name == slowest.Name;
             var badgeClass = s.Outcome == "Passed" ? "badge-pass" : s.Outcome == "Failed" ? "badge-fail" : "badge-skip";
-            var badgeIcon  = s.Outcome == "Passed" ? "✅ Passed" : s.Outcome == "Failed" ? "❌ Failed" : "⏭ Skipped";
-            var rowId      = $"detail-{i}";
-            var hasDetail  = s.ErrorMessage != null || s.Steps.Count > 0 || s.TraceFile != null || s.VideoFile != null;
+            var badgeIcon = s.Outcome == "Passed" ? "✅ Passed" : s.Outcome == "Failed" ? "❌ Failed" : "⏭ Skipped";
+            var rowId = $"detail-{i}";
+            var hasDetail = s.ErrorMessage != null || s.Steps.Count > 0 || s.TraceFile != null || s.VideoFile != null;
 
             sb.AppendLine($"""
         <tr>
@@ -640,7 +601,7 @@ public class ReportService : IReportService
                 {
                     sb.AppendLine("              <h4>Artifacts</h4>");
                     if (s.TraceFile != null)
-                        sb.AppendLine($"              <div class=\"links-row\"><a class=\"artifact-link\" href=\"/reports/artifact/{runId}/{s.TraceFile}\" download>📦 Download Trace</a></div>");
+                        sb.AppendLine($"              <div><a class=\"artifact-link\" href=\"/reports/artifact/{runId}/{s.TraceFile}\" download>📦 Download Trace</a></div>");
                     if (s.VideoFile != null)
                     {
                         sb.AppendLine($"""
@@ -669,20 +630,18 @@ public class ReportService : IReportService
   </footer>
 </div>
 <script>
-  function toggleTheme() {
-    const html = document.documentElement;
-    html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-    localStorage.setItem('prat-theme', html.getAttribute('data-theme'));
-  }
-  (function() {
-    const saved = localStorage.getItem('prat-theme');
-    if (saved) document.documentElement.setAttribute('data-theme', saved);
-  })();
   function toggleDetail(id) {
     const row = document.getElementById(id);
     const btn = row.previousElementSibling.querySelector('.expand-btn');
     row.classList.toggle('open');
     btn.textContent = row.classList.contains('open') ? '▼ Details' : '▶ Details';
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('prat-theme', next);
   }
 </script>
 </body>

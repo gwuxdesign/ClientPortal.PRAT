@@ -9,5 +9,6 @@ public record TestRunRequest(
     bool RecordVideo,
     bool RecordTraces,
     string RunnerName,
-    string? CustomResolution = null
+    string? CustomResolution = null,
+    string? CustomTag = null
 );

@@ -5,142 +5,309 @@
 @rendermode InteractiveServer
 @inject IJSRuntime JS
 
-<h3 class="mb-3">Run Automated Tests</h3>
-
-<div class="row g-3">
-
-    <div class="col-md-3">
-        <label class="form-label">Your Name <span class="text-danger">*</span></label>
-        <input type="text" class="form-control @(ShowValidation && string.IsNullOrWhiteSpace(RunnerName) ? "is-invalid" : "")"
-               @bind="RunnerName" placeholder="Enter your name" />
-        @if (ShowValidation && string.IsNullOrWhiteSpace(RunnerName))
-        {
-            <div class="invalid-feedback">Name is required before running tests.</div>
-        }
-    </div>
-
-    <div class="col-md-3">
-        <label class="form-label">Browser</label>
-        <select class="form-select" @bind="SelectedBrowser">
-            @foreach (var browser in Browsers)
-            {
-                <option value="@browser">@browser</option>
-            }
-        </select>
-    </div>
-
-    <div class="col-md-3">
-        <label class="form-label">Device</label>
-        <select class="form-select" @bind="SelectedDevice">
-            @foreach (var device in Devices)
-            {
-                <option value="@device">@device</option>
-            }
-        </select>
-    </div>
-
-    @if (SelectedDevice == "Custom")
-    {
-        <div class="col-md-3">
-            <label class="form-label">Resolution (e.g. 2560x1440)</label>
-            <input type="text" class="form-control" @bind="CustomResolution" placeholder="WIDTHxHEIGHT" />
-        </div>
+<style>
+    .section-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--bs-secondary-color);
+        margin-bottom: 0.6rem;
     }
 
-    <div class="col-md-3">
-        <label class="form-label">Environment</label>
-        <select class="form-select" @bind="SelectedEnvironment">
-            @foreach (var env in Environments)
-            {
-                <option value="@env">@env</option>
-            }
-        </select>
-    </div>
+    .config-section {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.5rem;
+        padding: 1rem 1.25rem 1.25rem;
+        margin-bottom: 1rem;
+    }
 
-    <div class="col-md-3">
-        <label class="form-label">Suite</label>
-        <select class="form-select" @bind="SelectedSuite">
-            @foreach (var suite in Suites)
-            {
-                <option value="@suite">@suite</option>
-            }
-        </select>
-    </div>
+    .dropdowns-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 1rem;
+    }
 
-    <div class="col-md-3">
-        <label class="form-label">Headed</label>
-        <div class="form-check form-switch mt-2">
-            <input class="form-check-input" type="checkbox" role="switch"
-                   id="headedSwitch" @bind="SelectedHeaded" />
-            <label class="form-check-label" for="headedSwitch">
-                @(SelectedHeaded ? "Headed" : "Headless")
-            </label>
-        </div>
-    </div>
+    .toggles-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+    }
 
-    <div class="col-md-3">
-        <label class="form-label">Record Video</label>
-        <div class="form-check form-switch mt-2">
-            <input class="form-check-input" type="checkbox" role="switch"
-                   id="videoSwitch" @bind="RecordVideo" />
-            <label class="form-check-label" for="videoSwitch">
-                @(RecordVideo ? "Enabled" : "Disabled")
-            </label>
-        </div>
-    </div>
+    .toggle-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        min-width: 110px;
+    }
 
-    <div class="col-md-3">
-        <label class="form-label">Record Traces</label>
-        <div class="form-check form-switch mt-2">
-            <input class="form-check-input" type="checkbox" role="switch"
-                   id="tracesSwitch" @bind="RecordTraces" />
-            <label class="form-check-label" for="tracesSwitch">
-                @(RecordTraces ? "Enabled" : "Disabled")
-            </label>
-        </div>
-    </div>
+    .toggle-item .toggle-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
 
+    .coming-soon-badge {
+        margin-left: 0.4rem;
+        font-size: 0.65rem;
+        padding: 1px 5px;
+        border-radius: 20px;
+        background: rgba(255, 193, 7, 0.15);
+        color: #ffc107;
+        border: 1px solid rgba(255, 193, 7, 0.3);
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .mfa-toggle-wrapper {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+    .mfa-toggle-wrapper .form-check-input {
+        cursor: not-allowed;
+    }
+
+    .output-panel {
+        font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+        font-size: 0.8rem;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        flex: 1;
+        min-height: 300px;
+    }
+
+    .output-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - var(--output-top, 500px) - 2rem);
+        min-height: 300px;
+    }
+
+    .suite-row {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .suite-row select {
+        flex: 0 0 auto;
+        min-width: 130px;
+    }
+
+    .suite-row input {
+        flex: 1;
+        font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+        font-size: 0.875rem;
+    }
+
+    .action-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    @@media (max-width: 600px) {
+        .dropdowns-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .toggles-grid {
+            gap: 1rem;
+        }
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Run Automated Tests</h3>
 </div>
 
-<div class="mt-4">
+<div class="config-section">
+    <div class="section-label">Configuration</div>
+    <div class="dropdowns-grid">
+
+        <div>
+            <label class="form-label fw-semibold">Your Name <span class="text-danger">*</span></label>
+            <input type="text"
+                   class="form-control @(ShowValidation && string.IsNullOrWhiteSpace(RunnerName) ? "is-invalid" : "")"
+                   @bind="RunnerName"
+                   placeholder="Enter your name" />
+            @if (ShowValidation && string.IsNullOrWhiteSpace(RunnerName))
+            {
+                <div class="invalid-feedback">Name is required.</div>
+            }
+        </div>
+
+        <div>
+            <label class="form-label fw-semibold">Browser</label>
+            <select class="form-select" @bind="SelectedBrowser">
+                @foreach (var browser in Browsers)
+                {
+                    <option value="@browser">@browser</option>
+                }
+            </select>
+        </div>
+
+        <div>
+            <label class="form-label fw-semibold">Device</label>
+            <select class="form-select" @bind="SelectedDevice">
+                @foreach (var device in Devices)
+                {
+                    <option value="@device">@device</option>
+                }
+            </select>
+        </div>
+
+        @if (SelectedDevice == "Custom")
+        {
+            <div>
+                <label class="form-label fw-semibold">Resolution</label>
+                <input type="text" class="form-control" @bind="CustomResolution" placeholder="e.g. 2560x1440" />
+            </div>
+        }
+
+        <div>
+            <label class="form-label fw-semibold">Environment</label>
+            <select class="form-select" @bind="SelectedEnvironment">
+                @foreach (var env in Environments)
+                {
+                    <option value="@env">@env</option>
+                }
+            </select>
+        </div>
+
+        <div>
+            <label class="form-label fw-semibold">Suite</label>
+            @if (SelectedSuite == "Custom")
+            {
+                <div class="suite-row">
+                    <select class="form-select" @bind="SelectedSuite">
+                        @foreach (var suite in Suites)
+                        {
+                            <option value="@suite">@suite</option>
+                        }
+                    </select>
+                    <input type="text"
+                           class="form-control @(ShowValidation && string.IsNullOrWhiteSpace(CustomTag) ? "is-invalid" : "")"
+                           @bind="CustomTag"
+                           placeholder="tag name" />
+                    @if (ShowValidation && string.IsNullOrWhiteSpace(CustomTag))
+                    {
+                        <div class="invalid-feedback">Tag required.</div>
+                    }
+                </div>
+            }
+            else
+            {
+                <select class="form-select" @bind="SelectedSuite">
+                    @foreach (var suite in Suites)
+                    {
+                        <option value="@suite">@suite</option>
+                    }
+                </select>
+            }
+        </div>
+
+    </div>
+</div>
+
+<div class="config-section">
+    <div class="section-label">Options</div>
+    <div class="toggles-grid">
+
+        <div class="toggle-item">
+            <span class="toggle-label">Headed</span>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       id="headedSwitch" @bind="SelectedHeaded" />
+                <label class="form-check-label" for="headedSwitch">
+                    @(SelectedHeaded ? "Headed" : "Headless")
+                </label>
+            </div>
+        </div>
+
+        <div class="toggle-item">
+            <span class="toggle-label">Record Video</span>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       id="videoSwitch" @bind="RecordVideo" />
+                <label class="form-check-label" for="videoSwitch">
+                    @(RecordVideo ? "Enabled" : "Disabled")
+                </label>
+            </div>
+        </div>
+
+        <div class="toggle-item">
+            <span class="toggle-label">Record Traces</span>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       id="tracesSwitch" @bind="RecordTraces" />
+                <label class="form-check-label" for="tracesSwitch">
+                    @(RecordTraces ? "Enabled" : "Disabled")
+                </label>
+            </div>
+        </div>
+
+        <div class="toggle-item">
+            <span class="toggle-label">
+                MFA
+                <span class="coming-soon-badge">Coming soon</span>
+            </span>
+            <div class="mfa-toggle-wrapper" title="MFA via Twilio — coming soon">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="mfaSwitch" disabled />
+                    <label class="form-check-label text-muted" for="mfaSwitch">Disabled</label>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="action-bar mb-3">
     <button class="btn btn-primary" @onclick="RunTestsAsync" disabled="@IsRunning">
         @if (IsRunning)
         {
-            <span class="spinner-border spinner-border-sm me-2"></span>
-            <text>Running...</text>
+            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+            <span>Running...</span>
         }
         else
         {
-            <span>Run Tests</span>
+            <span>▶ Run Tests</span>
         }
     </button>
-    <button class="btn btn-danger ms-2" @onclick="StopTests" disabled="@(!IsRunning)">
-        Stop
+
+    <button class="btn btn-danger" @onclick="StopTests" disabled="@(!IsRunning)">
+        ⏹ Stop
     </button>
+
+    @if (!string.IsNullOrEmpty(LastReportFileName))
+    {
+        <a href="/reports/view/@LastReportFileName" target="_blank"
+           class="btn btn-outline-success">
+            📊 View Report
+        </a>
+    }
 </div>
 
-@if (!string.IsNullOrEmpty(LastReportFileName))
-{
-    <div class="mt-3">
-        <a href="/reports/view/@LastReportFileName" target="_blank" class="btn btn-outline-success btn-sm">
-            📊 View Test Report
-        </a>
+<div class="output-wrapper" id="output-wrapper">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="section-label mb-0">Output</span>
+        @if (OutputLines.Count > 0)
+        {
+            <small class="text-muted">@OutputLines.Count lines</small>
+        }
     </div>
-}
-
-<div class="mt-4">
-    <h5>Output</h5>
-    <pre id="output-panel" class="bg-dark text-light p-3 rounded" style="height: 750px; overflow-y: auto;">@string.Join("\n", OutputLines)</pre>
+    <pre id="output-panel" class="output-panel bg-dark text-light p-3 rounded">@string.Join("\n", OutputLines)</pre>
 </div>
 
 @code {
-    // Dropdown data
     private List<string> Browsers     = new() { "chromium", "firefox", "webkit" };
     private List<string> Devices      = new() { "Desktop", "Mobile", "TabletVer", "TabletHor", "Custom" };
     private List<string> Environments = new() { "REL", "QA2", "DEV" };
-    private List<string> Suites       = new() { "Smoke", "Regression", "Full" };
+    private List<string> Suites       = new() { "Smoke", "Regression", "Full", "Custom" };
 
-    // Selected values
     private string RunnerName          = "";
     private string SelectedBrowser     = "chromium";
     private string SelectedDevice      = "Desktop";
@@ -150,8 +317,8 @@
     private bool   RecordVideo         = false;
     private bool   RecordTraces        = false;
     private string CustomResolution    = "";
+    private string CustomTag           = "";
 
-    // State
     private readonly List<string> OutputLines = new();
     private const int MaxLines = 2000;
     private bool IsRunning = false;
@@ -171,6 +338,8 @@
                 RunnerName = saved;
                 await InvokeAsync(StateHasChanged);
             }
+
+            await JS.InvokeVoidAsync("setOutputTop");
         }
     }
 
@@ -184,6 +353,12 @@
             return;
         }
 
+        if (SelectedSuite == "Custom" && string.IsNullOrWhiteSpace(CustomTag))
+        {
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
         await JS.InvokeVoidAsync("localStorage.setItem", "prat-runner-name", RunnerName.Trim());
 
         IsRunning = true;
@@ -191,16 +366,21 @@
         OutputLines.Clear();
         cts = new CancellationTokenSource();
 
+        var effectiveTag = SelectedSuite == "Custom"
+            ? CustomTag.Trim().TrimStart('@')
+            : SelectedSuite;
+
         var request = new TestRunRequest(
             SelectedBrowser,
             SelectedDevice,
             SelectedEnvironment,
-            SelectedSuite,
+            effectiveTag,
             SelectedHeaded,
             RecordVideo,
             RecordTraces,
             RunnerName.Trim(),
-            CustomResolution: string.IsNullOrWhiteSpace(CustomResolution) ? null : CustomResolution
+            CustomResolution: string.IsNullOrWhiteSpace(CustomResolution) ? null : CustomResolution,
+            CustomTag: SelectedSuite == "Custom" ? effectiveTag : null
         );
 
         try
