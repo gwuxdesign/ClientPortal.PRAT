@@ -3,9 +3,16 @@ Project for automating the Client Portal for testing purposes.
 
 # Getting Started
 What is required to run locally:
-1.	.NET 10.0 SDK
-2.	IDE such as VS Code, Visual Studio 2022 or JetBrains Rider
+1. .NET 10.0 SDK
+2. IDE such as VS Code, Visual Studio 2022 or JetBrains Rider
 3. Powershell (Not legacy Windows Powershell)
+4. Update appsettings.json.local file
+{
+  "TestRunner": {
+    "WorkingDirectory": "/path/to/their/tests/ClientPortal.PRAT.Acceptance",
+    "ReportsDirectory": "/path/to/their/tests/ClientPortal.PRAT.Acceptance/TestResults"
+  }
+}
 
 # VS Code Extensions
 1. C# Extension by Microsoft (C# and C# Dev Kit)
@@ -15,11 +22,16 @@ What is required to run locally:
 5. .NET Extension Pack
 6. .NET Install Tool
 
-# Build and Test
+# Build
 dotnet clean
 dotnet restore
 dotnet build
+
+# Test via Terminal
 dotnet test tests/ClientPortal.PRAT.Acceptance
+
+# Test via Frontend
+dotnet run
 
 # Configurable Command Parameters
 HEADED=1 # Run tests in headed mode (default is headless)
