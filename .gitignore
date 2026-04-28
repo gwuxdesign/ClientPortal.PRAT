@@ -2,6 +2,7 @@
 # IDE / editor user state
 ############################
 **/.vs/
+**/appsettings.local.json
 .vscode/
 *.suo
 *.user
