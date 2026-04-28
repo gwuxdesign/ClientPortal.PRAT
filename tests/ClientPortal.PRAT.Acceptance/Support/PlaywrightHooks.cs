@@ -194,6 +194,17 @@ namespace ClientPortal.PRAT.Acceptance.Support
             var ignoreHttpsErrors = browserType == "firefox";
             var deviceTypeValue   = Environment.GetEnvironmentVariable("DEVICE_TYPE");
 
+            // Firefox does not support isMobile — fall back to Desktop silently
+            // The UI should prevent this combination but this guards against it at runtime
+            var isMobileDevice = deviceTypeValue is "Mobile" or "TabletVer" or "TabletHor";
+            if (browserType == "firefox" && isMobileDevice)
+            {
+                Console.WriteLine("[WARN] Firefox does not support mobile/tablet emulation — falling back to Desktop context.");
+                Console.Out.Flush();
+                deviceTypeValue = "Desktop";
+            }
+
+            // Custom resolution: DEVICE_TYPE=custom:2560x1440
             if (!string.IsNullOrEmpty(deviceTypeValue) &&
                 deviceTypeValue.StartsWith("custom:", StringComparison.OrdinalIgnoreCase))
             {
@@ -217,6 +228,7 @@ namespace ClientPortal.PRAT.Acceptance.Support
                     $"Invalid custom resolution format: {resolutionPart}. Expected WIDTHxHEIGHT (e.g., 2560x1440).");
             }
 
+            // Standard device profiles
             var deviceType = Enum.TryParse<DeviceType>(deviceTypeValue, true, out var parsedType)
                 ? parsedType
                 : DeviceType.Desktop;
