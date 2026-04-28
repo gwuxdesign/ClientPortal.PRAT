@@ -7,6 +7,8 @@ What is required to run locally:
 2. IDE such as VS Code, Visual Studio 2022 or JetBrains Rider
 3. Powershell (Not legacy Windows Powershell)
 4. Update appsettings.json.local file
+
+E.g.
 {
   "TestRunner": {
     "WorkingDirectory": "/path/to/their/tests/ClientPortal.PRAT.Acceptance",
