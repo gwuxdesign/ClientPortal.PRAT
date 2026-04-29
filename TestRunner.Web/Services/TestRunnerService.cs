@@ -26,10 +26,10 @@ public class TestRunnerService : ITestRunnerService
         TestRunRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var runId       = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-        var runFolder   = Path.Combine(_reportsDirectory, runId);
+        var runId = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        var runFolder = Path.Combine(_reportsDirectory, runId);
         var trxFileName = $"run-{runId}.trx";
-        var trxPath     = Path.Combine(runFolder, trxFileName);
+        var trxPath = Path.Combine(runFolder, trxFileName);
 
         var artifactsBase = Path.Combine(_workingDirectory, "bin", "Debug", "net10.0");
 
@@ -39,26 +39,30 @@ public class TestRunnerService : ITestRunnerService
             ? $"custom:{request.CustomResolution}"
             : request.Device;
 
+        // Build the test filter — supports multiple tags using comma separation
+        // e.g. "Smoke, Login" becomes "TestCategory=Smoke|TestCategory=Login"
+        var filter = BuildTestFilter(request.Suite);
+
         var psi = new ProcessStartInfo
         {
-            FileName  = "dotnet",
-            Arguments = $"test --filter \"TestCategory={request.Suite}\" " +
+            FileName = "dotnet",
+            Arguments = $"test --filter \"{filter}\" " +
                         $"--logger \"console;verbosity=detailed\" " +
                         $"--logger \"trx;LogFileName={trxPath}\"",
-            WorkingDirectory       = _workingDirectory,
+            WorkingDirectory = _workingDirectory,
             RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            UseShellExecute        = false,
-            CreateNoWindow         = true
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
         };
 
-        psi.Environment["BROWSER"]         = request.Browser;
-        psi.Environment["HEADED"]          = request.Headed ? "1" : "0";
-        psi.Environment["DEVICE_TYPE"]     = deviceType;
-        psi.Environment["ENVIRON"]         = request.Environment;
-        psi.Environment["RECORD_VIDEO"]    = request.RecordVideo ? "1" : "0";
-        psi.Environment["RECORD_TRACES"]   = request.RecordTraces ? "1" : "0";
-        psi.Environment["ARTIFACTS_BASE"]  = artifactsBase;
+        psi.Environment["BROWSER"] = request.Browser;
+        psi.Environment["HEADED"] = request.Headed ? "1" : "0";
+        psi.Environment["DEVICE_TYPE"] = deviceType;
+        psi.Environment["ENVIRON"] = request.Environment;
+        psi.Environment["RECORD_VIDEO"] = request.RecordVideo ? "1" : "0";
+        psi.Environment["RECORD_TRACES"] = request.RecordTraces ? "1" : "0";
+        psi.Environment["ARTIFACTS_BASE"] = artifactsBase;
 
         yield return "SERVICE CALLED";
         yield return $"Working directory : {psi.WorkingDirectory}";
@@ -77,7 +81,7 @@ public class TestRunnerService : ITestRunnerService
             yield break;
         }
 
-        var channel       = Channel.CreateUnbounded<string>();
+        var channel = Channel.CreateUnbounded<string>();
         var consoleBuffer = new StringBuilder();
 
         var stdoutTask = Task.Run(async () =>
@@ -131,7 +135,7 @@ public class TestRunnerService : ITestRunnerService
         MoveArtifacts(artifactsBase, runFolder);
 
         string? reportFileName = null;
-        string? reportWarning  = null;
+        string? reportWarning = null;
 
         try
         {
@@ -147,7 +151,7 @@ public class TestRunnerService : ITestRunnerService
         }
         catch (Exception ex)
         {
-            reportWarning  = $"[WARN] Report generation failed: {ex.Message}";
+            reportWarning = $"[WARN] Report generation failed: {ex.Message}";
             reportFileName = null;
         }
 
@@ -158,6 +162,20 @@ public class TestRunnerService : ITestRunnerService
             yield return $"REPORT:{runId}/{reportFileName}";
 
         yield return "COMPLETE";
+    }
+
+    // Converts a tag expression into a dotnet test filter string
+    // Comma separation (OR):  "Smoke, Login"  → "TestCategory=Smoke|TestCategory=Login"
+    // Single tag:             "Smoke"         → "TestCategory=Smoke"
+    private static string BuildTestFilter(string suite)
+    {
+        if (suite.Contains(','))
+        {
+            var parts = suite.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return string.Join("|", parts.Select(p => $"TestCategory={p}"));
+        }
+
+        return $"TestCategory={suite.Trim()}";
     }
 
     private static void MoveArtifacts(string artifactsBase, string runFolder)

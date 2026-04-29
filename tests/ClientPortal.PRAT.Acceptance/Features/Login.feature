@@ -26,7 +26,7 @@ Feature: Login
       | empty   | empty login |
       | invalid | bad email   |
 
-  @Smoke
+  @Smoke @Sample
   Scenario: Logout Functionality
     Given the user is logged in
     When the user clicks on the logout button
