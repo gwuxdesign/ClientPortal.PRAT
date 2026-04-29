@@ -21,13 +21,12 @@ window.toggleTheme = () => {
     return next;
 };
 
-// Reapply theme after Blazor navigation — covers both enhanced nav and circuit reconnects
+// Reapply theme after Blazor navigation
 document.addEventListener('blazor:navigated', () => {
     window.applyTheme();
 });
 
-// Also protect against Blazor resetting the attribute via a MutationObserver
-// This catches any DOM diffing that removes data-bs-theme from <html>
+// Protect against Blazor DOM diffing resetting data-bs-theme
 const themeObserver = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
         if (mutation.attributeName === 'data-bs-theme') {
@@ -41,6 +40,19 @@ const themeObserver = new MutationObserver((mutations) => {
 });
 
 themeObserver.observe(document.documentElement, { attributes: true });
+
+// Initialise Bootstrap tooltips on all elements with data-bs-toggle="tooltip"
+window.initTooltips = () => {
+    const tooltipEls = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltipEls.forEach(el => {
+        const existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) existing.dispose();
+        new bootstrap.Tooltip(el, {
+            trigger: 'hover focus',
+            html: true
+        });
+    });
+};
 
 // Scroll output panel to bottom
 window.scrollToBottom = (id) => {
