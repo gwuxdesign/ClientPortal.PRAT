@@ -46,10 +46,10 @@ dotnet build
 - Use the command: `dotnet run`
 
 # Configurable Command Parameters
-`HEADED=1` - Run tests in headed mode (default is headless)
-`BROWSER=chromium` - Browser to use (chromium, firefox, webkit)
-`DEVICE_TYPE=Desktop` - Device type to emulate (Desktop, Tablet, Mobile - default is Desktop)
-`ENVIRON=REL` - Environment to run tests against (REL, DEV, QA2 - default is REL)
+- `HEADED=1` - Run tests in headed mode (default is headless)
+- `BROWSER=chromium` - Browser to use (chromium, firefox, webkit)
+- `DEVICE_TYPE=Desktop` - Device type to emulate (Desktop, Tablet, Mobile - default is Desktop)
+- `ENVIRON=REL` - Environment to run tests against (REL, DEV, QA2 - default is REL)
 
 # References
 1. https://dotnet.microsoft.com/en-us/download/dotnet/10.0
