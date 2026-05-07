@@ -9,12 +9,14 @@ What is required to run locally:
 4. Update appsettings.json.local file
 
 E.g.
+```
 {
   "TestRunner": {
     "WorkingDirectory": "/path/to/their/tests/ClientPortal.PRAT.Acceptance",
     "ReportsDirectory": "/path/to/their/tests/ClientPortal.PRAT.Acceptance/TestResults"
   }
 }
+```
 
 # VS Code Extensions
 1. C# Extension by Microsoft (C# and C# Dev Kit)
@@ -25,7 +27,7 @@ E.g.
 6. .NET Install Tool
 
 # Build
-- In a terminal
+- In a terminal, run the following commands from the root folder:
 ```
 dotnet clean
 dotnet restore
