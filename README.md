@@ -4,7 +4,7 @@ Project for automating the Client Portal for testing purposes.
 # Getting Started
 What is required to run locally:
 1. .NET 10.0 SDK
-2. IDE such as VS Code, Visual Studio 2022 or JetBrains Rider
+2. IDE such as VS Code, Visual Studio or JetBrains Rider
 3. Powershell (Not legacy Windows Powershell)
 4. Update appsettings.json.local file
 
@@ -25,21 +25,29 @@ E.g.
 6. .NET Install Tool
 
 # Build
+- In a terminal
+```
 dotnet clean
 dotnet restore
 dotnet build
+```
+
+# Setup Playwright
+- In a terminal, navigate to folder `tests/ClientPortal.PRAT.Acceptance`
+- Use the command: `pwsh bin/Debug/net10.0/playwright.ps1 install`
 
 # Test via Terminal
-dotnet test tests/ClientPortal.PRAT.Acceptance
+- In a terminal, run command from the root folder: `dotnet test tests/ClientPortal.PRAT.Acceptance`
 
 # Test via Frontend
-dotnet run
+- In a terminal, navigate to folder `TestRunner.Web`
+- Use the command: `dotnet run`
 
 # Configurable Command Parameters
-HEADED=1 # Run tests in headed mode (default is headless)
-BROWSER=chromium # Browser to use (chromium, firefox, webkit)
-DEVICE_TYPE=Desktop # Device type to emulate (Desktop, Tablet, Mobile - default is Desktop)
-ENVIRON=REL # Environment to run tests against (REL, DEV, QA2 - default is REL)
+`HEADED=1` - Run tests in headed mode (default is headless)
+`BROWSER=chromium` - Browser to use (chromium, firefox, webkit)
+`DEVICE_TYPE=Desktop` - Device type to emulate (Desktop, Tablet, Mobile - default is Desktop)
+`ENVIRON=REL` - Environment to run tests against (REL, DEV, QA2 - default is REL)
 
 # References
 1. https://dotnet.microsoft.com/en-us/download/dotnet/10.0
