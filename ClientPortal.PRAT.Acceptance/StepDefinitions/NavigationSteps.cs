@@ -4,7 +4,7 @@ using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 using ClientPortal.PRAT.Acceptance.Support;
 
-namespace ClientPortal.PRAT.Acceptance.Steps
+namespace ClientPortal.PRAT.Acceptance.StepsDefinitions
 {
     [Binding]
     public sealed class NavigationSteps
@@ -21,7 +21,7 @@ namespace ClientPortal.PRAT.Acceptance.Steps
         [Given(@"the user navigates to the Client Portal")]
         public async Task GivenTheUserNavigatesToTheClientPortal()
         {
-            await _world.Page.GotoAsync(_world.PortalUrl);
+            await _world.Page.GotoAsync(_world.BaseUrl);
         }
 
         [Then("the user navigates to the {string} page")]

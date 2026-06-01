@@ -9,7 +9,6 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <NoWarn>CS7022</NoWarn>
     <NoWarn>NU1900</NoWarn>
-    <!-- <ReqnrollGenerator>true</ReqnrollGenerator> -->
     <GenerateReqnrollCodeBehind>true</GenerateReqnrollCodeBehind>
   </PropertyGroup>
 
@@ -23,6 +22,9 @@
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
     <PackageReference Include="Reqnroll" Version="3.3.4" />
     <PackageReference Include="Reqnroll.NUnit" Version="3.3.4" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,16 +32,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\credentials.json" Link="credentials.json">
+    <None Include="credentials*.json" Link="%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\appsettings*.json" Link="%(Filename)%(Extension)">
+    <None Include="appsettings*.json" Link="%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\ClientPortal.PRAT\ClientPortal.PRAT.csproj" />
   </ItemGroup>
 
 </Project>

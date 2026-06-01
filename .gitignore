@@ -57,9 +57,9 @@ TestResults/
 ############################
 # Local secrets / environment config
 ############################
-credentials.json
+credentials.*.json
 *.secret.json
-appsettings.*.local.json
+appsettings.*.json
 
 # Allow safe non-secret templates to be committed
 !appsettings.Template.json

@@ -26,7 +26,7 @@ public class NavigationPage
                 await Expect(_world.Pages.loginPage._btnLogin).ToBeVisibleAsync();
                 break;
             case "my notifications":
-                await Expect(_page).ToHaveURLAsync(_world.PortalUrl);
+                await Expect(_page).ToHaveURLAsync(_world.BaseUrl);
                 await Expect(_world.Pages.notifPage._labelTitle).ToBeVisibleAsync();
                 break;
             case "my profile":

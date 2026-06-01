@@ -19,7 +19,7 @@ namespace ClientPortal.PRAT.Acceptance.Support
         // Configuration
         public IConfiguration Configuration { get; }
         public string EnvironmentName { get; }
-        public string PortalUrl { get; }
+        public string BaseUrl { get; }
         public string ScenarioSafeName { get; set; } = "";
 
         public TestWorld()
@@ -39,12 +39,13 @@ namespace ClientPortal.PRAT.Acceptance.Support
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddConfiguration(baseConfig)
                 .AddJsonFile($"appsettings.{EnvironmentName}.json", optional: true)
+                .AddJsonFile("appsettings.local.json", optional: true)
                 .AddEnvironmentVariables()
                 .Build();
 
             Configuration = config;
-            PortalUrl = config[$"Environments:{EnvironmentName}:PortalUrl"]
-                        ?? throw new InvalidOperationException($"PortalUrl not configured for {EnvironmentName}");
+            BaseUrl = config[$"Environments:{EnvironmentName}:BaseUrl"]
+                        ?? throw new InvalidOperationException($"BaseUrl not configured for {EnvironmentName}");
         }
     }
 }

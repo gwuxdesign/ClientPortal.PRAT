@@ -4,7 +4,7 @@ using Reqnroll;
 using static Microsoft.Playwright.Assertions;
 using ClientPortal.PRAT.Acceptance.Support;
 
-namespace ClientPortal.PRAT.Tests.StepDefinitions
+namespace ClientPortal.PRAT.Acceptance.StepDefinitions
 {
     [Binding]
     public class DocumentsSteps

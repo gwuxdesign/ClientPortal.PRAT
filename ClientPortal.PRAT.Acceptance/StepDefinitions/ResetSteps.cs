@@ -3,7 +3,7 @@ using Reqnroll;
 using static Microsoft.Playwright.Assertions;
 using ClientPortal.PRAT.Acceptance.Support;
 
-namespace ClientPortal.PRAT.Tests.StepDefinitions
+namespace ClientPortal.PRAT.Acceptance.StepDefinitions
 {
     [Binding]
     public class ResetSteps
@@ -40,7 +40,8 @@ namespace ClientPortal.PRAT.Tests.StepDefinitions
         public async Task WhenTheUserSubmitsAValidEmail()
         {
             var resetCreds = CredentialReader.Get("resetLogin");
-            await _world.Pages.resetPage.PasswordReset(resetCreds.email, true);
+            await _world.Pages.cookiePage.ClickAccept();
+            await _world.Pages.resetPage.PasswordReset(resetCreds.Email, true);
         }
 
         [Then("the user is presented with a confirmation message")]

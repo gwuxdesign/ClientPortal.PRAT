@@ -27,16 +27,29 @@ public class MenuPage
     public ILocator _menuTerms => _page.Locator("li").Locator("button:has-text('Terms and conditions')");
     public ILocator _menuCookie => _page.Locator("li").Locator("button:has-text('Cookie policy')");
 
-    public async Task ClickMenu() => await _btnMenu.ClickAsync();
+    // public async Task ClickMenu() => await _btnMenu.ClickAsync();
+    public async Task ClickMenu()
+    {
+        await _btnMenu.WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible
+        });
+        await _btnMenu.ClickAsync();
+    }
 
     public async Task ClickMenuItem(string menuItem)
     {
+        // await _btnMenu.ClickAsync();
+        await _btnMenu.WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible
+        });
         await _btnMenu.ClickAsync();
         switch (menuItem.ToLower())
         {
             case "my notifications":
                 var currentURL = _page.Url;
-                if (!Regex.IsMatch(currentURL, $"^{Regex.Escape(_world.PortalUrl)}/?$"))
+                if (!Regex.IsMatch(currentURL, $"^{Regex.Escape(_world.BaseUrl)}/?$"))
                 {
                     await _menuMyNotifs.ClickAsync();
                 }

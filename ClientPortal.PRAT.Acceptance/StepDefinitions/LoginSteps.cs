@@ -3,7 +3,7 @@ using Reqnroll;
 using static Microsoft.Playwright.Assertions;
 using ClientPortal.PRAT.Acceptance.Support;
 
-namespace ClientPortal.PRAT.Tests.StepDefinitions
+namespace ClientPortal.PRAT.Acceptance.StepDefinitions
 {
     [Binding]
     public class LoginSteps
@@ -24,11 +24,13 @@ namespace ClientPortal.PRAT.Tests.StepDefinitions
             {
                 case "valid":
                     var goodCreds = CredentialReader.Get("goodLogin");
-                    await _world.Pages.loginPage.Login(goodCreds.email, goodCreds.password);
+                    await _world.Pages.cookiePage.ClickAccept();
+                    await _world.Pages.loginPage.Login(goodCreds.Email, goodCreds.Password);
                     break;
                 case "invalid":
                     var badCreds = CredentialReader.Get("badLogin");
-                    await _world.Pages.loginPage.Login(badCreds.email, badCreds.password);
+                    await _world.Pages.cookiePage.ClickAccept();
+                    await _world.Pages.loginPage.Login(badCreds.Email, badCreds.Password);
                     break;
                 default:
                     throw new ArgumentException($"Unknown login type: {LoginType}");
@@ -38,14 +40,16 @@ namespace ClientPortal.PRAT.Tests.StepDefinitions
         [When("the user submits an {string} in the login form")]
         public async Task WhenTheUserSubmitsAnInTheLoginForm(string error)
         {
-            switch(error)
+            switch (error)
             {
                 case "empty":
+                    await _world.Pages.cookiePage.ClickAccept();
                     await _world.Pages.loginPage._boxEmail.FillAsync("");
                     await _world.Pages.loginPage._boxPassword.FillAsync("");
                     await _world.Pages.loginPage._btnLogin.ClickAsync();
                     break;
                 case "invalid":
+                    await _world.Pages.cookiePage.ClickAccept();
                     await _world.Pages.loginPage._boxEmail.FillAsync("test");
                     await _world.Pages.loginPage._boxPassword.FillAsync("");
                     await _world.Pages.loginPage._btnLogin.ClickAsync();
@@ -86,7 +90,8 @@ namespace ClientPortal.PRAT.Tests.StepDefinitions
         public async Task GivenTheUserIsLoggedIn()
         {
             var creds = CredentialReader.Get("goodLogin");
-            await _world.Pages.loginPage.Login(creds.email, creds.password, clickLogin: true);
+            await _world.Pages.cookiePage.ClickAccept();
+            await _world.Pages.loginPage.Login(creds.Email, creds.Password, clickLogin: true);
         }
 
         [When("the user clicks on the logout button")]
