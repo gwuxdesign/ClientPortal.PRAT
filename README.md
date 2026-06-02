@@ -72,7 +72,7 @@ dotnet build
 # Test via Frontend
 - In a terminal, navigate to `TestRunner.Web`
 - Use the command: `dotnet run`
-- Open a browser and navigate to `https://localhost:5001`
+- Open a browser and navigate to `https://localhost:5001` (Port number may vary but terminal output should confirm)
 
 # Configurable Command Parameters
 - `HEADED=1` - Run tests in headed mode (default is headless)
