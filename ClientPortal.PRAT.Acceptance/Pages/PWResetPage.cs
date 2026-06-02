@@ -1,14 +1,12 @@
 using Microsoft.Playwright;
-using ClientPortal.PRAT.Acceptance.Support;
 
 namespace ClientPortal.PRAT.Acceptance.Pages;
 
-public class PWResetPage
+public class PWResetPage : BasePage
 {
-    private IPage _page;
+    public PWResetPage(IPage page) : base(page) { }
 
     // Locators for the password reset page elements
-    public PWResetPage(IPage page) => _page = page;
     public ILocator _labelTitle => _page.Locator("h1:has-text('Forgotten password')");
     public ILocator _boxEmail => _page.Locator("#email");
     public ILocator _btnBack => _page.Locator("button:has-text('Back')");

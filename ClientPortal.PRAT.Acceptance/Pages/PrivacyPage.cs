@@ -1,13 +1,11 @@
 using Microsoft.Playwright;
-using ClientPortal.PRAT.Acceptance.Support;
 
 namespace ClientPortal.PRAT.Acceptance.Pages;
 
-public class PrivacyPage
+public class PrivacyPage : BasePage
 {
-    public IPage _page;
+    public PrivacyPage(IPage page) : base(page) { }
 
     // Locators for notifications page elements
-    public PrivacyPage(IPage page) => _page = page;
     public ILocator _labelTitle => _page.Locator("h1:has-text('Privacy Notice')");
 }

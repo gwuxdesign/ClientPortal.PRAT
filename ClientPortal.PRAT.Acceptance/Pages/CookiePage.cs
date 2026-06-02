@@ -1,13 +1,10 @@
 using Microsoft.Playwright;
-using ClientPortal.PRAT.Acceptance.Support;
 
 namespace ClientPortal.PRAT.Acceptance.Pages;
 
-public class CookiePage
+public class CookiePage : BasePage
 {
-    private IPage _page;
-
-    public CookiePage(IPage page) => _page = page;
+    public CookiePage(IPage page) : base(page) { }
 
     // Locators for cookie policy pop-up elements
     public ILocator _labelPUTitle => _page.Locator("h1:has-text('Welcome to MyAdviceHub (REL)')");
@@ -20,8 +17,6 @@ public class CookiePage
     public ILocator _labelTitle => _page.Locator("h1:has-text('Our use of cookies')");
 
     // Methods to interact with cookie policy pop-up elements
-    // public async Task ClickAccept() => await _btnPUAccept.ClickAsync();
-    // public async Task ClickReject() => await _btnPUReject.ClickAsync();
     public async Task ClickAccept()
     {
         try

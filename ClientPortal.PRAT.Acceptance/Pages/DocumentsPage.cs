@@ -1,14 +1,12 @@
 using Microsoft.Playwright;
-using ClientPortal.PRAT.Acceptance.Support;
 
 namespace ClientPortal.PRAT.Acceptance.Pages;
 
-public class DocumentsPage
+public class DocumentsPage : BasePage
 {
-    public IPage _page;
+    public DocumentsPage(IPage page) : base(page) { }
 
     // Locators for notifications page elements
-    public DocumentsPage(IPage page) => _page = page;
     public ILocator _labelTitle => _page.Locator("h1:has-text('My documents')");
     public ILocator _labelAction => _page.Locator("h2:has-text('Action required')");
     public ILocator _labelUpload => _page.Locator("h3:has-text('Got something to upload?')");

@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace ClientPortal.PRAT.Acceptance.Pages;
 
-public class MenuPage
+public class MenuPage 
 {
     public IPage _page;
 

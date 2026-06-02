@@ -25,6 +25,7 @@ namespace ClientPortal.PRAT.Acceptance.StepDefinitions
                 case "valid":
                     var goodCreds = CredentialReader.Get("goodLogin");
                     await _world.Pages.cookiePage.ClickAccept();
+                    Console.WriteLine($"I managed to get this far!");
                     await _world.Pages.loginPage.Login(goodCreds.Email, goodCreds.Password);
                     break;
                 case "invalid":

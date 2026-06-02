@@ -1,14 +1,12 @@
 using Microsoft.Playwright;
-using ClientPortal.PRAT.Acceptance.Support;
 
 namespace ClientPortal.PRAT.Acceptance.Pages;
 
-public class LoginPage
+public class LoginPage : BasePage
 {
-    private IPage _page;
+    public LoginPage(IPage page) : base(page) { }
 
     // Locators for the login page elements
-    public LoginPage(IPage page) => _page = page;
     public ILocator _labelTitle => _page.Locator("h1:has-text('MyAdviceHub (REL) login')");
     public ILocator _boxEmail => _page.Locator("#email");
     public ILocator _boxPassword => _page.Locator("#password");
@@ -26,17 +24,10 @@ public class LoginPage
     // Methods to interact with login page elements
     public async Task ClickLogin() => await _btnLogin.ClickAsync();
     public async Task ClickLogout() => await _btnLogout.ClickAsync();
-    // public async Task Login(string? email, string? password, bool clickLogin = false)
-    // {
-    //     await _boxEmail.FillAsync(email ?? string.Empty);
-    //     await _boxPassword.FillAsync(password ?? string.Empty);
-    //     if (clickLogin)
-    //     {
-    //         await _btnLogin.ClickAsync();
-    //     }
-    // }
+    
     public async Task Login(string? email, string? password, bool clickLogin = false)
     {
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await _boxEmail.WaitForAsync(new LocatorWaitForOptions
         {
             State = WaitForSelectorState.Visible

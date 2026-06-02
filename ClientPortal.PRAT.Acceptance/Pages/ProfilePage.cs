@@ -1,14 +1,12 @@
 using Microsoft.Playwright;
-using ClientPortal.PRAT.Acceptance.Support;
 
 namespace ClientPortal.PRAT.Acceptance.Pages;
 
-public class ProfilePage
+public class ProfilePage : BasePage
 {
-    public IPage _page;
+    public ProfilePage(IPage page) : base(page) { }
 
     // Locators for profile page elements
-    public ProfilePage(IPage page) => _page = page;
     public ILocator _labelTitle => _page.Locator("h1:has-text('My profile')");
     public ILocator _labelPersonal => _page.Locator("h1:has-text('My personal details')");
     public ILocator _labelIdentity => _page.Locator("h2:has-text('Identity')");
