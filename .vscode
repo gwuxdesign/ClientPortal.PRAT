@@ -6,11 +6,5 @@
   "files.exclude": {
     "**/obj/": true,
     "**/bin/": true
-  },
-  "cucumber.glue": [
-    "**/**/*.cs"
-  ],
-  "cucumber.features": [
-    "**/**/*.feature"
-  ]
+  }
 }
