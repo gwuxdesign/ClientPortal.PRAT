@@ -69,12 +69,17 @@ Open the project using the workspace file at the solution root:
 
 This ensures the Cucumber extension resolves step definitions correctly. This can be done two ways:
 ### Option 1
-1. In terminal, ensure you are in the project root. I.e. `ClientPortal.PRAT`
+1. In terminal, ensure you are in the project root. I.e. `ClientPortal.PRAT` (Use command `pwd` to confirm)
 2. Run command `code ClientPortal.PRAT.code-workspace`
 
 ### Option 2
 1. In Windows File Explorer, go to the project. E.g. `C:\USER\Path\To\ClientPortal.PRAT`
 2. Double click file called `ClientPortal.PRAT.code-workspace`
+
+### Option 3
+1. In VS Code, go to `File` -> `Open Workspace from File...`
+2. Navigate to where the project is stored.
+3. Select the file called `ClientPortal.PRAT.code-workspace` and open.
 
 
 # Build Project
@@ -86,12 +91,12 @@ dotnet build
 ```
 
 # Configure Playwright
-- In a terminal, navigate to `ClientPortal.PRAT.Acceptance` (`cd ClientPortal.PRAT.Acceptance`)
+- In a terminal, navigate to `ClientPortal.PRAT.Acceptance` (Use command `cd ClientPortal.PRAT.Acceptance`)
 - Use the command: `pwsh bin/Debug/net10.0/playwright.ps1 install`
 
 # Testing
 ## Test via Frontend
-- In a terminal, navigate to `TestRunner.Web` (`cd TestRunner.Web`)
+- In a terminal, navigate to `TestRunner.Web` (Use command `cd TestRunner.Web`)
 - Use the command: `dotnet run`
 - Open a browser and navigate to `https://localhost:5001` (Port number may vary but terminal output should confirm)
 
