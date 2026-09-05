@@ -1,0 +1,100 @@
+name: PRAT Harness (REL)
+
+# Manual trigger only for now, while profiles are being proven out one at
+# a time. Move to a schedule once Timing/Latency/Retry are all working
+# reliably (see docs/harness-design.md).
+#
+# schedule:
+#   - cron: '0 6 * * 1'  # e.g. weekly, Monday 06:00 UTC — not enabled yet
+
+on:
+  workflow_dispatch:
+    inputs:
+      fault_profile:
+        description: 'Fault profile to run'
+        required: true
+        type: choice
+        options:
+          - Timing
+          - Latency
+          - Retry
+        # Concurrency and Load are deliberately excluded until REL's
+        # security/fraud monitoring owner has had a heads-up — see
+        # docs/harness-design.md.
+      fault_magnitude:
+        description: 'Fault magnitude (profile-specific, e.g. delay in ms)'
+        required: true
+        default: '1000'
+
+concurrency:
+  group: prat-harness
+  cancel-in-progress: false
+
+jobs:
+  run-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Determine target scenario
+        id: target
+        run: |
+          case "${{ inputs.fault_profile }}" in
+            Timing)  echo "category=Login" >> "$GITHUB_OUTPUT" ;;
+            Latency) echo "category=Navigation" >> "$GITHUB_OUTPUT" ;;
+            Retry)   echo "category=PasswordReset" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Write environment config
+        run: |
+          cat <<EOF > ClientPortal.PRAT.Acceptance/appsettings.local.json
+          {
+            "Environments": {
+              "REL": { "BaseUrl": "${{ secrets.REL_BASE_URL }}" }
+            }
+          }
+          EOF
+
+      - name: Write test credentials
+        run: |
+          cat <<EOF > ClientPortal.PRAT.Acceptance/credentials.local.json
+          {
+            "Accounts": {
+              "goodLogin": { "Email": "${{ secrets.REL_GOOD_EMAIL }}", "Password": "${{ secrets.REL_GOOD_PASSWORD }}" },
+              "badLogin": { "Email": "${{ secrets.REL_BAD_EMAIL }}", "Password": "${{ secrets.REL_BAD_PASSWORD }}" }
+            }
+          }
+          EOF
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Install Playwright browsers
+        run: pwsh ClientPortal.PRAT.Acceptance/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Run harness
+        env:
+          ENVIRON: REL
+          FAULT_PROFILE: ${{ inputs.fault_profile }}
+          FAULT_MAGNITUDE: ${{ inputs.fault_magnitude }}
+        run: >
+          dotnet test ClientPortal.PRAT.Acceptance
+          --no-build
+          --filter "Category=${{ steps.target.outputs.category }}"
+          --logger "trx;LogFileName=harness-results.trx"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-results-${{ inputs.fault_profile }}
+          path: ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
