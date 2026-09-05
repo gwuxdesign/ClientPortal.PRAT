@@ -67,7 +67,9 @@ jobs:
           {
             "Accounts": {
               "goodLogin": { "Email": "${{ secrets.REL_GOOD_EMAIL }}", "Password": "${{ secrets.REL_GOOD_PASSWORD }}" },
-              "badLogin": { "Email": "${{ secrets.REL_BAD_EMAIL }}", "Password": "${{ secrets.REL_BAD_PASSWORD }}" }
+              "badLogin": { "Email": "${{ secrets.REL_BAD_EMAIL }}", "Password": "${{ secrets.REL_BAD_PASSWORD }}" },
+              "invalidLogin": { "Email": "${{ secrets.REL_INVALID_EMAIL }}", "Password": "${{ secrets.REL_INVALID_PASSWORD }}" },
+              "resetLogin": { "Email": "${{ secrets.REL_RESET_EMAIL }}" }
             }
           }
           EOF
