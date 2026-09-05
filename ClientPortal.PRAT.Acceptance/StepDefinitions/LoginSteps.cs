@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Reqnroll;
 using static Microsoft.Playwright.Assertions;
+using Microsoft.Playwright;
 using ClientPortal.PRAT.Acceptance.Support;
 
 namespace ClientPortal.PRAT.Acceptance.StepDefinitions
@@ -41,16 +42,20 @@ namespace ClientPortal.PRAT.Acceptance.StepDefinitions
         [When("the user submits an {string} in the login form")]
         public async Task WhenTheUserSubmitsAnInTheLoginForm(string error)
         {
+            await _world.Pages.cookiePage.ClickAccept();
+            await _world.Pages.loginPage._boxEmail.WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible
+            });
+
             switch (error)
             {
                 case "empty":
-                    await _world.Pages.cookiePage.ClickAccept();
                     await _world.Pages.loginPage._boxEmail.FillAsync("");
                     await _world.Pages.loginPage._boxPassword.FillAsync("");
                     await _world.Pages.loginPage._btnLogin.ClickAsync();
                     break;
                 case "invalid":
-                    await _world.Pages.cookiePage.ClickAccept();
                     await _world.Pages.loginPage._boxEmail.FillAsync("test");
                     await _world.Pages.loginPage._boxPassword.FillAsync("");
                     await _world.Pages.loginPage._btnLogin.ClickAsync();
