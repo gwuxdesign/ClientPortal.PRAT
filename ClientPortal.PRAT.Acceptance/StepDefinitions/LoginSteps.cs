@@ -74,6 +74,11 @@ namespace ClientPortal.PRAT.Acceptance.StepDefinitions
         [Then("the login attempt was {string}")]
         public async Task ThenTheLoginAttemptWas(string status)
         {
+            if (_world.FaultProfile != null)
+            {
+                await _world.FaultProfile.ApplyAsync(_world.Page, _world.FaultMagnitude);
+            }
+
             switch (status.ToLower())
             {
                 case "successful":

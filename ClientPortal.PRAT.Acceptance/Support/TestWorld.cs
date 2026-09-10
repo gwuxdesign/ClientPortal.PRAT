@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Playwright;
+using ClientPortal.PRAT.Acceptance.Harness;
 
 namespace ClientPortal.PRAT.Acceptance.Support
 {
@@ -21,6 +22,13 @@ namespace ClientPortal.PRAT.Acceptance.Support
         public string EnvironmentName { get; }
         public string BaseUrl { get; }
         public string ScenarioSafeName { get; set; } = "";
+
+        // Harness fault injection — resolved once per scenario from
+        // FAULT_PROFILE/FAULT_MAGNITUDE, following the same environment
+        // variable convention as ENVIRON. FaultProfile is null when no
+        // fault profile is configured, meaning the scenario runs unmodified.
+        public IFaultProfile? FaultProfile { get; }
+        public int FaultMagnitude { get; }
 
         public TestWorld()
         {
@@ -46,6 +54,11 @@ namespace ClientPortal.PRAT.Acceptance.Support
             Configuration = config;
             BaseUrl = config[$"Environments:{EnvironmentName}:BaseUrl"]
                         ?? throw new InvalidOperationException($"BaseUrl not configured for {EnvironmentName}");
+
+            FaultProfile = FaultProfileRegistry.Resolve(Environment.GetEnvironmentVariable("FAULT_PROFILE"));
+            FaultMagnitude = int.TryParse(Environment.GetEnvironmentVariable("FAULT_MAGNITUDE"), out var magnitude)
+                ? magnitude
+                : 0;
         }
     }
 }
