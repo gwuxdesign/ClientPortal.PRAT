@@ -1,22 +1,14 @@
-using Microsoft.Playwright;
-
 namespace ClientPortal.PRAT.Acceptance.Harness;
 
 /// <summary>
-/// Injects a configurable delay before an assertion runs, to test whether
-/// PRAT's checks are genuinely waiting on application state or are timing
-/// dependent. Applied to the Login scenario's outcome check
-/// (see LoginSteps.cs).
+/// Simulates a timing/race condition on the Login flow: delays the
+/// login request so the app has less time to settle before PRAT checks
+/// the outcome. Applied in LoginSteps, before the login form is
+/// submitted, not before the outcome assertion — the original
+/// placement there was a flat pre-assertion delay that couldn't
+/// actually cause failures (see docs/harness-design.md).
 /// </summary>
-public class TimingFaultProfile : IFaultProfile
+public class TimingFaultProfile : NetworkDelayFaultProfile
 {
-    public string Name => "Timing";
-
-    public async Task ApplyAsync(IPage page, int magnitude, CancellationToken cancellationToken = default)
-    {
-        if (magnitude > 0)
-        {
-            await Task.Delay(magnitude, cancellationToken);
-        }
-    }
+    public override string Name => "Timing";
 }
