@@ -15,7 +15,8 @@ public static class FaultProfileRegistry
         new(StringComparer.OrdinalIgnoreCase)
         {
             { "Timing", new TimingFaultProfile() },
-            { "Latency", new LatencyFaultProfile() }
+            { "Latency", new LatencyFaultProfile() },
+            { "Retry", new RetryFaultProfile() }
         };
 
     /// <summary>

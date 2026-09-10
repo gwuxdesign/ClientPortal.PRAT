@@ -166,3 +166,19 @@ working reliably via manual runs.
   scenario never reaches `ThenTheLoginAttemptWas`. Real, naturally-
   occurring flakiness, left as-is for now, a genuine example rather than
   a defect to chase.
+- **10th Sept 2026** — `LatencyFaultProfile` confirmed working as
+  intended: 5/6 "Navigation after login" outline examples genuinely
+  failed under a 12s delay (real assertion timeout is 5000ms, from
+  Playwright's web-first assertion default, separate from the context's
+  10000ms action timeout). "My notifications" and two scenarios that
+  never call `TheUserClicksThe` passed for explicable, non-concerning
+  reasons (see run analysis). Confirms Latency succeeds where Timing
+  failed: delaying the actual response, not just the assertion's start,
+  genuinely contests the timeout window.
+  Observation for later: failures surface as `net::ERR_ABORTED`, likely
+  because `AfterScenario` closes the context while the delayed route is
+  still pending. Possible risk: synthetic timeout failures may carry a
+  distinguishable signature (abort vs. genuinely slow-but-completing)
+  that real-world timeout flakiness wouldn't share, worth reviewing when
+  building the failure-classification labels, so the classifier learns
+  genuine timeout characteristics rather than this harness's fingerprint.

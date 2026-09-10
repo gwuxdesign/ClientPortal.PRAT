@@ -41,6 +41,12 @@ namespace ClientPortal.PRAT.Acceptance.StepDefinitions
         {
             var resetCreds = CredentialReader.Get("resetLogin");
             await _world.Pages.cookiePage.ClickAccept();
+
+            if (_world.FaultProfile != null)
+            {
+                await _world.FaultProfile.ApplyAsync(_world.Page, _world.FaultMagnitude);
+            }
+
             await _world.Pages.resetPage.PasswordReset(resetCreds.Email, true);
         }
 
