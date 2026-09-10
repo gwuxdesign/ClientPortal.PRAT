@@ -145,3 +145,24 @@ working reliably via manual runs.
   trigger, credentials/config generated from GitHub Secrets at runtime,
   results uploaded as a `.trx` artifact. Not yet meaningful until the
   profile registry and Latency/Retry implementations land.
+- **10th Sept 2026** — `FaultProfileRegistry` built and wired into
+  `TestWorld` (resolves `FAULT_PROFILE`/`FAULT_MAGNITUDE` in the
+  constructor, same convention as `ENVIRON`). Applied in
+  `LoginSteps.ThenTheLoginAttemptWas`, before the outcome assertion.
+  Confirmed via `.trx` timings that the delay executes (~12s added to
+  scenario duration), but it does not cause failures: `Expect(...)`
+  polls for its own timeout window regardless of when it starts, so
+  delaying the start doesn't shrink that window. `TimingFaultProfile` as
+  built can only slow a scenario down, not genuinely induce flakiness.
+  Decision: rework `TimingFaultProfile` to intercept the login
+  request/response via `Page.RouteAsync` (the same mechanism planned for
+  Latency) rather than a flat pre-assertion `Task.Delay`, once Latency's
+  implementation establishes the pattern. Latency built first; Timing's
+  rework follows as a known piece of fallout, not forgotten.
+- **10th Sept 2026** — separately, confirmed `LoginFieldValidation`
+  ("empty" case) is intermittently flaky against REL even with the
+  visibility-wait fix (occasional >10s delay before `#email` becomes
+  visible after the cookie banner). Unrelated to fault injection, this
+  scenario never reaches `ThenTheLoginAttemptWas`. Real, naturally-
+  occurring flakiness, left as-is for now, a genuine example rather than
+  a defect to chase.

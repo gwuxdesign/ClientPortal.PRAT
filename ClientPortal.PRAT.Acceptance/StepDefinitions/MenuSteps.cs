@@ -27,6 +27,11 @@ namespace ClientPortal.PRAT.Acceptance.StepDefinitions
         [When("the user clicks the {string} menu link")]
         public async Task TheUserClicksThe(string menuItem)
         {
+            if (_world.FaultProfile != null)
+            {
+                await _world.FaultProfile.ApplyAsync(_world.Page, _world.FaultMagnitude);
+            }
+
             await _world.Pages.menuPage.ClickMenuItem(menuItem);
         }
     }

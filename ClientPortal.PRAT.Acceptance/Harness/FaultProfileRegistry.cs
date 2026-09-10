@@ -14,7 +14,8 @@ public static class FaultProfileRegistry
     private static readonly Dictionary<string, IFaultProfile> _profiles =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            { "Timing", new TimingFaultProfile() }
+            { "Timing", new TimingFaultProfile() },
+            { "Latency", new LatencyFaultProfile() }
         };
 
     /// <summary>
