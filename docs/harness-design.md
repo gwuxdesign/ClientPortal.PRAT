@@ -243,3 +243,32 @@ working reliably via manual runs.
   same incidental `401` console error. Confirms this is a recurring,
   systemic characteristic of REL rather than a one-off tied to a single
   scenario. Left as-is, a genuine example rather than a defect to chase.
+- **17th Sept 2026** — `LoadFaultProfile` built and confirmed working.
+  Endpoint identified via manual DevTools inspection:
+  `GET .../api/document/all/metadata`, returning `documents` (the
+  rendered/filterable list) and `documentsForApproval` (a separate,
+  unrelated queue — confirmed only `documents` needed inflating, since
+  the "All" filter's count of 6 matches `documents` exactly). Rewrites
+  the response body via `Page.RouteAsync` + `FetchAsync`/`FulfillAsync`,
+  appending `magnitude` extra copies with fresh GUIDs; strips
+  `content-length` before fulfilling, since it would mismatch the
+  inflated body. No new step-wiring needed — `Documents.feature` reaches
+  the page via the same `MenuSteps.TheUserClicksThe` call site already
+  wired for the other profiles.
+  Unlike Concurrency, Load does not need the security/fraud-monitoring
+  heads-up: it generates no extra requests to REL, the response is
+  rewritten client-side after the real (small) response is fetched, so
+  REL sees identical traffic to any normal run. Added to the workflow's
+  `fault_profile` choices directly.
+  `DocumentsSteps.cs`'s two assertions were hardcoded to the original
+  6-document baseline and needed to become magnitude-aware:
+  `ThenTheUserShouldOnlySeeTheRight` now expects `count × (magnitude +
+  1)`; `ThenTheOfDocuments` repeats each expected title in place
+  (magnitude + 1) times. The in-place repetition was confirmed, not
+  assumed, via a real run: duplicated titles sit adjacent to their
+  original rather than interleaved, since each clone keeps the same
+  `dateCreated`, so a stable sort keeps them grouped. Both fixes
+  confirmed via two runs at `magnitude: 1`: first run validated the
+  count fix (no more count-mismatch errors, only the not-yet-fixed
+  title-list assertion failing exactly as expected); second run's data
+  informed the title-list fix. A third run should confirm both together.

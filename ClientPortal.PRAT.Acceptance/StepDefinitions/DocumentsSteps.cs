@@ -71,6 +71,18 @@ namespace ClientPortal.PRAT.Acceptance.StepDefinitions
                     .Where(t => !string.IsNullOrEmpty(t))
                     .ToArray();
 
+            // Load duplicates each document in place (confirmed via a
+            // real run: a stable sort keeps clones adjacent to their
+            // original, since they share the same dateCreated), so the
+            // expected list needs each title repeated (magnitude + 1)
+            // times in place, not the whole list repeated end-to-end.
+            if (_world.FaultProfile?.Name == "Load")
+            {
+                expectedTitles = expectedTitles
+                    .SelectMany(t => Enumerable.Repeat(t, _world.FaultMagnitude + 1))
+                    .ToArray();
+            }
+
             await Expect(_world.Pages.docPage._documentList).ToHaveTextAsync(expectedTitles);
         }
     }
