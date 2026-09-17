@@ -182,3 +182,43 @@ working reliably via manual runs.
   that real-world timeout flakiness wouldn't share, worth reviewing when
   building the failure-classification labels, so the classifier learns
   genuine timeout characteristics rather than this harness's fingerprint.
+- **10th Sept 2026** — `RetryFaultProfile` built (aborts the first
+  `magnitude` requests, then allows subsequent ones through; magnitude
+  is a count, not a duration, unlike Timing/Latency). Applied in
+  `ResetSteps`, before the reset form submission. Confirmed: `magnitude:
+  0` passes cleanly (no route registered, matches uninstrumented
+  behaviour), `magnitude: 1` fails `PasswordReset` — PRAT's automation
+  and, as far as observable, the app itself have no retry on a single
+  failed attempt. Clean matched pair on record for this scenario.
+- **10th Sept 2026** — `TimingFaultProfile` reworked to extend a new
+  shared `NetworkDelayFaultProfile` base (route-interception delay),
+  matching Latency's mechanism rather than the original flat
+  pre-assertion `Task.Delay`. Application point moved from
+  `ThenTheLoginAttemptWas` to `WhenTheUserSubmitsTheLoginForm`, before
+  the login click, not before the outcome check. `LatencyFaultProfile`
+  refactored onto the same base, removing duplicated logic.
+  Confirmed via six total runs: Timing and Latency both pass cleanly at
+  `magnitude: 500` and genuinely fail at `magnitude: 12000`; Retry
+  passes at `0` and fails at `1`. All three profiles now proven, not
+  just designed. This closes the Timing rework item.
+- **17th Sept 2026** — resolved the long-open `IFaultProfile` shape
+  question for `ConcurrencyFaultProfile`: no interface change needed.
+  `IPage.Context.Browser` gives access back to the shared `IBrowser`,
+  so a profile can spin up additional contexts/sessions without needing
+  anything beyond the existing single-`IPage` signature. Implemented as
+  fire-and-forget (launched via `Task.Run`, not awaited within
+  `ApplyAsync`), so the parallel sessions run genuinely alongside the
+  scenario's own login click rather than completing before it. Uses the
+  single configured `goodLogin` account for every session (no separate
+  pool configured) — arguably the more relevant test anyway: shared-
+  session contention on one account.
+  No change needed to `LoginSteps.cs`: the call site added for Timing's
+  rework was already profile-agnostic, so it applies whichever profile
+  is active without modification.
+  Known risk, not yet confirmed: `AfterScenario` closes the shared
+  `IBrowser` once the scenario ends, which may kill background sessions
+  mid-flight if the scenario's own login resolves first. Needs a real
+  run to confirm either way, same as the `ERR_ABORTED` situation.
+  **Not yet run against REL** — still pending the security/fraud
+  monitoring heads-up per the staged rollout decision above. The
+  workflow's dropdown still excludes it; don't bypass that locally.

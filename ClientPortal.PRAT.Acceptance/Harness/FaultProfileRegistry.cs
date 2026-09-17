@@ -16,7 +16,8 @@ public static class FaultProfileRegistry
         {
             { "Timing", new TimingFaultProfile() },
             { "Latency", new LatencyFaultProfile() },
-            { "Retry", new RetryFaultProfile() }
+            { "Retry", new RetryFaultProfile() },
+            { "Concurrency", new ConcurrencyFaultProfile() }
         };
 
     /// <summary>
