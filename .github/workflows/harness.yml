@@ -18,9 +18,14 @@ on:
           - Timing
           - Latency
           - Retry
-        # Concurrency and Load are deliberately excluded until REL's
-        # security/fraud monitoring owner has had a heads-up — see
-        # docs/harness-design.md.
+          - Load
+        # Concurrency is deliberately excluded until REL's security/fraud
+        # monitoring owner has had a heads-up (it genuinely generates
+        # parallel login traffic that could resemble credential
+        # stuffing). Load doesn't need the same gate: it rewrites the
+        # Documents response client-side after the real (small) response
+        # is fetched, so REL sees the same request pattern as any normal
+        # run — see docs/harness-design.md.
       fault_magnitude:
         description: 'Fault magnitude (profile-specific, e.g. delay in ms)'
         required: true
@@ -49,6 +54,7 @@ jobs:
             Timing)  echo "category=Login" >> "$GITHUB_OUTPUT" ;;
             Latency) echo "category=Navigation" >> "$GITHUB_OUTPUT" ;;
             Retry)   echo "category=PasswordReset" >> "$GITHUB_OUTPUT" ;;
+            Load)    echo "category=Documents" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Write environment config

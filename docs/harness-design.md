@@ -222,3 +222,24 @@ working reliably via manual runs.
   **Not yet run against REL** — still pending the security/fraud
   monitoring heads-up per the staged rollout decision above. The
   workflow's dropdown still excludes it; don't bypass that locally.
+- **17th Sept 2026** — closed the `ERR_ABORTED` investigation.
+  Re-ran Latency at `magnitude: 2000` (well under the 5000ms assertion
+  timeout): all 6 scenarios that reach the fault-affected assertion
+  passed cleanly, no aborts. Root cause confirmed: `ERR_ABORTED` only
+  occurs when the delay meets or exceeds the assertion's own timeout,
+  since that guarantees the assertion fails and ends the scenario while
+  the delayed route is still holding a request open; `AfterScenario`
+  then closes the browser and the still-pending request is cancelled.
+  Below that threshold, the request simply completes before the
+  scenario has any reason to end. Not a flaw in the profile — it's an
+  artefact of magnitude choice relative to the assertion window, worth
+  keeping in mind when generating labelled training data (a magnitude
+  near the boundary would produce a genuine slow-but-passing case,
+  useful contrast against the always-aborts case above it).
+  Separately, the same run surfaced 2 unrelated failures (a 10000ms
+  timeout in `GivenTheUserIsLoggedIn`, before the fault-affected step is
+  ever reached), matching the same intermittent REL slowness pattern
+  found earlier in `LoginFieldValidation`'s "empty" case, including the
+  same incidental `401` console error. Confirms this is a recurring,
+  systemic characteristic of REL rather than a one-off tied to a single
+  scenario. Left as-is, a genuine example rather than a defect to chase.
