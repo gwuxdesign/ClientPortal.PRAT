@@ -46,11 +46,19 @@ namespace ClientPortal.PRAT.Acceptance.StepDefinitions
         [Then(@"the user should only see the right ""(.*)""")]
         public async Task ThenTheUserShouldOnlySeeTheRight(int count)
         {
+            // Load appends 'magnitude' extra copies of the full document
+            // set, so the true expected count scales with it. Every
+            // other profile leaves count as-is (magnitude defaults to 0
+            // when no fault is configured).
+            var expectedCount = _world.FaultProfile?.Name == "Load"
+                ? count * (_world.FaultMagnitude + 1)
+                : count;
+
             int documentCount = await _world.Pages.docPage._documentResults.CountAsync();
 
-            if (documentCount != count)
+            if (documentCount != expectedCount)
             {
-                throw new Exception($"Expected {count} documents, but found {documentCount}.");
+                throw new Exception($"Expected {expectedCount} documents, but found {documentCount}.");
             }
         }
 
