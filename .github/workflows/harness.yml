@@ -35,6 +35,9 @@ concurrency:
   group: prat-harness
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   run-harness:
     runs-on: ubuntu-latest
@@ -100,9 +103,93 @@ jobs:
           --filter "Category=${{ steps.target.outputs.category }}"
           --logger "trx;LogFileName=harness-results.trx"
 
+      - name: Write run metadata
+        if: always()
+        run: |
+          cat <<EOF > ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
+          {
+            "faultProfile": "${{ inputs.fault_profile }}",
+            "faultMagnitude": ${{ inputs.fault_magnitude }},
+            "targetCategory": "${{ steps.target.outputs.category }}",
+            "environment": "REL",
+            "runId": "${{ github.run_id }}",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "ranAtUtc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commitSha": "${{ github.sha }}"
+          }
+          EOF
+
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: harness-results-${{ inputs.fault_profile }}
-          path: ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
+          path: |
+            ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
+            ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
+
+      - name: Append run to dataset
+        if: always()
+        run: |
+          python3 - <<'PYEOF'
+          import csv, json, os
+          import xml.etree.ElementTree as ET
+
+          trx_path = 'ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx'
+          meta_path = 'ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json'
+          dataset_path = 'data/harness-results.csv'
+
+          if not os.path.isfile(trx_path) or not os.path.isfile(meta_path):
+              print('No trx/metadata found (likely an earlier step failed before tests ran) — skipping append.')
+              raise SystemExit(0)
+
+          with open(meta_path) as f:
+              meta = json.load(f)
+
+          def parse_duration(d):
+              h, m, s = d.split(':')
+              return round(int(h) * 3600 + int(m) * 60 + float(s), 3)
+
+          ns = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
+          root = ET.parse(trx_path).getroot()
+
+          rows = [{
+              'run_id': meta['runId'],
+              'run_url': meta['runUrl'],
+              'ran_at_utc': meta['ranAtUtc'],
+              'commit_sha': meta['commitSha'],
+              'fault_profile': meta['faultProfile'],
+              'fault_magnitude': meta['faultMagnitude'],
+              'target_category': meta['targetCategory'],
+              'scenario_name': ut.get('testName'),
+              'outcome': ut.get('outcome'),
+              'duration_seconds': parse_duration(ut.get('duration')),
+          } for ut in root.iter(ns + 'UnitTestResult')]
+
+          if not rows:
+              print('trx contained no results — skipping append.')
+              raise SystemExit(0)
+
+          os.makedirs('data', exist_ok=True)
+          file_exists = os.path.isfile(dataset_path)
+          with open(dataset_path, 'a', newline='') as f:
+              writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+              if not file_exists:
+                  writer.writeheader()
+              writer.writerows(rows)
+
+          print(f'Appended {len(rows)} row(s) to {dataset_path}')
+          PYEOF
+
+      - name: Commit dataset update
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/harness-results.csv
+          if ! git diff --staged --quiet; then
+            git commit -m "Append harness run ${{ github.run_id }} (${{ inputs.fault_profile }}, magnitude ${{ inputs.fault_magnitude }})"
+            git push
+          else
+            echo "Nothing to commit (no new rows)."
+          fi

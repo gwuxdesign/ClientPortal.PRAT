@@ -13,21 +13,33 @@ pass/fail data with known ground truth.
 
 ## Architecture
 
-Five stages, each extending an existing PRAT component rather than adding a
-separate system:
+Originally scoped as five stages, each extending an existing PRAT
+component. Stages 1–2 held; stages 3–4 didn't happen as planned and are
+corrected below (19th Sept) once it became clear `TestRunner.Web` was
+never actually touched by any of this work.
 
 1. **Existing PRAT scenarios** — Login, Documents, Navigation, PasswordReset
    (the four currently-active Reqnroll features). Unmodified.
 2. **Fault injection layer** — five configurable profiles (see below),
    applied via an `IFaultProfile` interface.
-3. **Harness orchestrator** — extends `TestRunnerService` to run a given
-   scenario/profile pair repeatedly. Runs against an isolated environment
-   (QA2 or DEV) with a dedicated test account pool, not REL.
-4. **Result capture and labelling** — extends `TestRunReport` with fields
-   for the fault profile and magnitude applied, so every run is
-   self-labelling.
+3. **Harness orchestrator** — ~~extends `TestRunnerService`~~ **actually
+   built as**: `.github/workflows/harness.yml`, a GitHub Actions
+   workflow running `dotnet test` directly with `FAULT_PROFILE`/
+   `FAULT_MAGNITUDE` set. `TestRunner.Web` is untouched — confirmed by
+   grep, no references anywhere in the harness code. This was a
+   reasonable substitution (it works, proven across all five profiles)
+   but the original plan's wording was never corrected until now.
+4. **Result capture and labelling** — ~~extends `TestRunReport`~~ **not
+   yet built at all**, this was assumed to be in progress but genuinely
+   isn't. Every run so far produced a `.trx` with outcome and duration,
+   but nothing records which fault profile or magnitude was active —
+   that context has only ever existed in conversation and CI logs, never
+   attached to the result itself. None of the runs done so far are
+   usable as labelled data as they stand. Real next step: a metadata
+   sidecar written alongside each `.trx` (see build log, 19th Sept).
 5. **Labelled training dataset** — structured output feeding both the flaky
-   test classifier and the failure root-cause classifier.
+   test classifier and the failure root-cause classifier. Not started;
+   depends on stage 4 actually existing first.
 
 ## Fault profiles
 
@@ -123,12 +135,20 @@ working reliably via manual runs.
 
 ## Open questions
 
-- Confirmed thread safety of `CredentialReader` under concurrent access?
-- Data seeding approach for the load profile (against REL test data)?
-- Exact `FAULT_MAGNITUDE` ranges per profile (to be set empirically once
-  each profile is running)?
-- Timing for the Concurrency/Load heads-up to REL's security/fraud
-  monitoring owner?
+- ~~Confirmed thread safety of `CredentialReader` under concurrent
+  access?~~ Resolved 18th Sept — see build log.
+- ~~Data seeding approach for the load profile (against REL test
+  data)?~~ Resolved via response-rewriting rather than real data
+  seeding — see build log, 17th–18th Sept.
+- Exact `FAULT_MAGNITUDE` ranges per profile, beyond the boundaries
+  already found empirically (Timing/Latency: 500 passes, 12000 fails;
+  Retry: 0 passes, 1 fails; Load: 500 passes, 2000 fails) — tighter
+  bounds could be found later if useful for the training dataset, not
+  currently planned.
+- ~~Timing for the Concurrency/Load heads-up to REL's security/fraud
+  monitoring owner?~~ Decided 18th Sept not to pursue: no clear owner
+  given the organisational changes. Concurrency remains unrun against
+  REL as a deliberate scope decision — see build log.
 
 ## Build log
 
@@ -272,3 +292,47 @@ working reliably via manual runs.
   count fix (no more count-mismatch errors, only the not-yet-fixed
   title-list assertion failing exactly as expected); second run's data
   informed the title-list fix. A third run should confirm both together.
+- **18th Sept 2026** — Load's genuine failure boundary found. Clean
+  passes at `magnitude: 1`, `30`, `500` (up to 3,006 documents); a real
+  failure at `2000` (12,006 documents), bracketing a real threshold
+  between the two. Unlike the earlier count/title fixes, this is not a
+  test-logic defect — the "All" filter's own click action timed out at
+  10000ms, with the target element already confirmed visible, enabled,
+  stable and scrolled into view; both assertions after it were skipped,
+  never reached. "All" is the only scenario in the run rendering the
+  full unfiltered set (12,006 items) from a fresh filter-triggered
+  render; every other scenario that passed either filters down to a
+  smaller subset or (for the sort options) very plausibly re-orders
+  already-rendered DOM rather than re-rendering from scratch. Likely
+  cause: the browser's main thread genuinely congested rendering that
+  many elements, delaying the click's own event handling past the
+  action timeout — a real UI responsiveness ceiling, not an artefact of
+  the test harness. Treated as the conclusion of the Load investigation:
+  a matched pass/fail pair now exists (500 clean, 2000 fails), the same
+  shape as Timing/Latency/Retry's data. No further magnitude escalation
+  planned — pushing toward the original 12000 ceiling would very likely
+  just make an already-understood failure more dramatic, or start
+  conflating real app slowness with the browser's own rendering limits,
+  a different and less useful finding.
+- **18th Sept 2026** — closed both remaining open questions from the
+  harness's original design.
+  `CredentialReader` thread safety: confirmed safe as actually used —
+  `reqnroll.json` sets `testThreadCount: 1` (scenarios never run in
+  parallel), and within any scenario the credential store is always
+  loaded synchronously before `ConcurrencyFaultProfile`'s background
+  sessions ever start, so the only real risk (a first-load race) is
+  never reachable in practice. That safety was implicit rather than
+  guaranteed by the code, though, so hardened it anyway: replaced the
+  manual null-check lazy-init with `Lazy<T>`, which guarantees
+  exactly-once initialisation regardless of test parallelism settings,
+  removing the fragility rather than just documenting around it.
+  Concurrency/security heads-up: decided not to pursue this further —
+  no clear owner identified given the ongoing organisational changes,
+  and chasing one down isn't a good use of time against the project
+  timeline. Concurrency therefore remains built and unit-reasoned-about
+  but never run against REL; this is a deliberate, documented scope
+  decision, not an oversight. No environment currently exists where it
+  could safely run instead (QA2/DEV block on the unresolved Twilio 2FA
+  gap). This is the honest final status for Concurrency in the Project
+  Report: implemented and design-validated, not empirically proven,
+  with the reasoning for that gap stated plainly rather than hidden.

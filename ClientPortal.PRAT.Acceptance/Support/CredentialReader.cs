@@ -3,35 +3,27 @@ using ClientPortal.PRAT.Acceptance.Support;
 
 public static class CredentialReader
 {
-    private static CredentialStore? _store;
+    // Lazy<T> guarantees the factory runs exactly once even under
+    // concurrent first access, regardless of test parallelism settings.
+    // Safe today because reqnroll.json sets testThreadCount: 1 and
+    // credentials are always loaded synchronously before Concurrency's
+    // background sessions ever start — but that safety was previously
+    // implicit rather than guaranteed by the code itself.
+    private static readonly Lazy<CredentialStore> _store = new(LoadStore);
 
-    private static void EnsureLoaded()
+    private static CredentialStore LoadStore()
     {
-        if (_store != null) return;
         var path = File.Exists("credentials.local.json")
             ? "credentials.local.json"
             : "credentials.json";
         var json = File.ReadAllText(path);
-        _store = JsonSerializer.Deserialize<CredentialStore>(json)
-                 ?? throw new InvalidOperationException("Failed to load credential store.");
+        return JsonSerializer.Deserialize<CredentialStore>(json)
+               ?? throw new InvalidOperationException("Failed to load credential store.");
     }
-
-    // private static void EnsureLoaded()
-    // {
-    //     if (_store != null) return;
-    //     var path = File.Exists("credentials.local.json")
-    //         ? "credentials.local.json"
-    //         : "credentials.json";
-    //     Console.WriteLine($"[CredentialReader] Loading from: {path}");
-    //     var json = File.ReadAllText(path);
-    //     _store = JsonSerializer.Deserialize<CredentialStore>(json)
-    //              ?? throw new InvalidOperationException("Failed to load credential store.");
-    // }
 
     public static Credentials Get(string key)
     {
-        EnsureLoaded();
-        if (_store!.Accounts.TryGetValue(key, out var creds))
+        if (_store.Value.Accounts.TryGetValue(key, out var creds))
         {
             return creds;
         }
