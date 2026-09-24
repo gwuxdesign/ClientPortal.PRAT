@@ -18,17 +18,29 @@ on:
           - Timing
           - Latency
           - Retry
-        # Concurrency and Load are deliberately excluded until REL's
-        # security/fraud monitoring owner has had a heads-up — see
-        # docs/harness-design.md.
+          - Load
+        # Concurrency is deliberately excluded until REL's security/fraud
+        # monitoring owner has had a heads-up (it genuinely generates
+        # parallel login traffic that could resemble credential
+        # stuffing). Load doesn't need the same gate: it rewrites the
+        # Documents response client-side after the real (small) response
+        # is fetched, so REL sees the same request pattern as any normal
+        # run — see docs/harness-design.md.
       fault_magnitude:
         description: 'Fault magnitude (profile-specific, e.g. delay in ms)'
         required: true
         default: '1000'
+      repeat_count:
+        description: 'Times to repeat this run in sequence (use >1 with magnitude 0 for baseline noise characterisation)'
+        required: true
+        default: '1'
 
 concurrency:
   group: prat-harness
   cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
   run-harness:
@@ -49,6 +61,7 @@ jobs:
             Timing)  echo "category=Login" >> "$GITHUB_OUTPUT" ;;
             Latency) echo "category=Navigation" >> "$GITHUB_OUTPUT" ;;
             Retry)   echo "category=PasswordReset" >> "$GITHUB_OUTPUT" ;;
+            Load)    echo "category=Documents" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Write environment config
@@ -83,20 +96,106 @@ jobs:
       - name: Install Playwright browsers
         run: pwsh ClientPortal.PRAT.Acceptance/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 
-      - name: Run harness
+      - name: Run harness (repeated)
+        if: always()
         env:
           ENVIRON: REL
           FAULT_PROFILE: ${{ inputs.fault_profile }}
           FAULT_MAGNITUDE: ${{ inputs.fault_magnitude }}
-        run: >
-          dotnet test ClientPortal.PRAT.Acceptance
-          --no-build
-          --filter "Category=${{ steps.target.outputs.category }}"
-          --logger "trx;LogFileName=harness-results.trx"
+        run: |
+          for i in $(seq 1 ${{ inputs.repeat_count }}); do
+            echo "=== Iteration $i of ${{ inputs.repeat_count }} ==="
 
-      - name: Upload results
+            dotnet test ClientPortal.PRAT.Acceptance \
+              --no-build \
+              --filter "Category=${{ steps.target.outputs.category }}" \
+              --logger "trx;LogFileName=harness-results.trx"
+
+            cat <<EOF > ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
+          {
+            "faultProfile": "${{ inputs.fault_profile }}",
+            "faultMagnitude": ${{ inputs.fault_magnitude }},
+            "targetCategory": "${{ steps.target.outputs.category }}",
+            "environment": "REL",
+            "runId": "${{ github.run_id }}",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "ranAtUtc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commitSha": "${{ github.sha }}",
+            "iteration": $i
+          }
+          EOF
+
+            python3 - <<'PYEOF'
+          import csv, json, os
+          import xml.etree.ElementTree as ET
+
+          trx_path = 'ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx'
+          meta_path = 'ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json'
+          dataset_path = 'data/harness-results.csv'
+
+          if not os.path.isfile(trx_path) or not os.path.isfile(meta_path):
+              print('No trx/metadata found — skipping append for this iteration.')
+              raise SystemExit(0)
+
+          with open(meta_path) as f:
+              meta = json.load(f)
+
+          def parse_duration(d):
+              h, m, s = d.split(':')
+              return round(int(h) * 3600 + int(m) * 60 + float(s), 3)
+
+          ns = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
+          root = ET.parse(trx_path).getroot()
+
+          rows = [{
+              'run_id': meta['runId'],
+              'run_url': meta['runUrl'],
+              'ran_at_utc': meta['ranAtUtc'],
+              'commit_sha': meta['commitSha'],
+              'fault_profile': meta['faultProfile'],
+              'fault_magnitude': meta['faultMagnitude'],
+              'target_category': meta['targetCategory'],
+              'iteration': meta['iteration'],
+              'scenario_name': ut.get('testName'),
+              'outcome': ut.get('outcome'),
+              'duration_seconds': parse_duration(ut.get('duration')),
+          } for ut in root.iter(ns + 'UnitTestResult')]
+
+          if not rows:
+              print('trx contained no results — skipping append for this iteration.')
+              raise SystemExit(0)
+
+          os.makedirs('data', exist_ok=True)
+          file_exists = os.path.isfile(dataset_path)
+          with open(dataset_path, 'a', newline='') as f:
+              writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+              if not file_exists:
+                  writer.writeheader()
+              writer.writerows(rows)
+
+          print(f'Appended {len(rows)} row(s) from iteration {meta["iteration"]} to {dataset_path}')
+          PYEOF
+
+          done
+
+      - name: Upload results (final iteration only)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: harness-results-${{ inputs.fault_profile }}
-          path: ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
+          name: harness-results-${{ inputs.fault_profile }}-${{ github.run_id }}
+          path: |
+            ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
+            ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
+
+      - name: Commit dataset update
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/harness-results.csv
+          if ! git diff --staged --quiet; then
+            git commit -m "Append harness run ${{ github.run_id }} (${{ inputs.fault_profile }}, magnitude ${{ inputs.fault_magnitude }})"
+            git push
+          else
+            echo "Nothing to commit (no new rows)."
+          fi
