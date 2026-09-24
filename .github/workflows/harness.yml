@@ -102,43 +102,32 @@ jobs:
           ENVIRON: REL
           FAULT_PROFILE: ${{ inputs.fault_profile }}
           FAULT_MAGNITUDE: ${{ inputs.fault_magnitude }}
+          TARGET_CATEGORY: ${{ steps.target.outputs.category }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           for i in $(seq 1 ${{ inputs.repeat_count }}); do
             echo "=== Iteration $i of ${{ inputs.repeat_count }} ==="
 
             dotnet test ClientPortal.PRAT.Acceptance \
               --no-build \
-              --filter "Category=${{ steps.target.outputs.category }}" \
+              --filter "Category=$TARGET_CATEGORY" \
               --logger "trx;LogFileName=harness-results.trx"
 
-            cat <<EOF > ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
-          {
-            "faultProfile": "${{ inputs.fault_profile }}",
-            "faultMagnitude": ${{ inputs.fault_magnitude }},
-            "targetCategory": "${{ steps.target.outputs.category }}",
-            "environment": "REL",
-            "runId": "${{ github.run_id }}",
-            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-            "ranAtUtc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "commitSha": "${{ github.sha }}",
-            "iteration": $i
-          }
-          EOF
+            export ITERATION=$i
+            export RAN_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
             python3 - <<'PYEOF'
-          import csv, json, os
+          import csv, os
           import xml.etree.ElementTree as ET
 
           trx_path = 'ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx'
-          meta_path = 'ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json'
           dataset_path = 'data/harness-results.csv'
 
-          if not os.path.isfile(trx_path) or not os.path.isfile(meta_path):
-              print('No trx/metadata found — skipping append for this iteration.')
+          if not os.path.isfile(trx_path):
+              print('No trx found — skipping append for this iteration.')
               raise SystemExit(0)
-
-          with open(meta_path) as f:
-              meta = json.load(f)
 
           def parse_duration(d):
               h, m, s = d.split(':')
@@ -148,14 +137,14 @@ jobs:
           root = ET.parse(trx_path).getroot()
 
           rows = [{
-              'run_id': meta['runId'],
-              'run_url': meta['runUrl'],
-              'ran_at_utc': meta['ranAtUtc'],
-              'commit_sha': meta['commitSha'],
-              'fault_profile': meta['faultProfile'],
-              'fault_magnitude': meta['faultMagnitude'],
-              'target_category': meta['targetCategory'],
-              'iteration': meta['iteration'],
+              'run_id': os.environ['RUN_ID'],
+              'run_url': os.environ['RUN_URL'],
+              'ran_at_utc': os.environ['RAN_AT_UTC'],
+              'commit_sha': os.environ['COMMIT_SHA'],
+              'fault_profile': os.environ['FAULT_PROFILE'],
+              'fault_magnitude': os.environ['FAULT_MAGNITUDE'],
+              'target_category': os.environ['TARGET_CATEGORY'],
+              'iteration': os.environ['ITERATION'],
               'scenario_name': ut.get('testName'),
               'outcome': ut.get('outcome'),
               'duration_seconds': parse_duration(ut.get('duration')),
@@ -173,7 +162,7 @@ jobs:
                   writer.writeheader()
               writer.writerows(rows)
 
-          print(f'Appended {len(rows)} row(s) from iteration {meta["iteration"]} to {dataset_path}')
+          print(f'Appended {len(rows)} row(s) from iteration {os.environ["ITERATION"]} to {dataset_path}')
           PYEOF
 
           done
@@ -183,9 +172,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: harness-results-${{ inputs.fault_profile }}-${{ github.run_id }}
-          path: |
-            ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
-            ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
+          path: ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
 
       - name: Commit dataset update
         if: always()
