@@ -156,6 +156,33 @@ jobs:
 
           os.makedirs('data', exist_ok=True)
           file_exists = os.path.isfile(dataset_path)
+
+          expected_fields = list(rows[0].keys())
+          if file_exists:
+              with open(dataset_path, 'rb') as f:
+                  content = f.read()
+
+              # Guard 1: header must match the current schema, or refuse
+              # rather than silently append mismatched columns.
+              with open(dataset_path, newline='') as f:
+                  existing_header = next(csv.reader(f), [])
+              if existing_header and existing_header != expected_fields:
+                  raise SystemExit(
+                      'Refusing to append: existing header does not match '
+                      f'the current schema.\nExisting: {existing_header}\n'
+                      f'Current:  {expected_fields}\n'
+                      'The dataset needs a one-time migration before this '
+                      'can append safely — see docs/harness-design.md.'
+                  )
+
+              # Guard 2: file must end with a newline, or the next row
+              # written in append mode will fuse onto the last line
+              # instead of starting a fresh one.
+              if content and not content.endswith(b'\n'):
+                  print('Existing file has no trailing newline — adding one before appending.')
+                  with open(dataset_path, 'ab') as f:
+                      f.write(b'\r\n')
+
           with open(dataset_path, 'a', newline='') as f:
               writer = csv.DictWriter(f, fieldnames=rows[0].keys())
               if not file_exists:
