@@ -30,6 +30,10 @@ on:
         description: 'Fault magnitude (profile-specific, e.g. delay in ms)'
         required: true
         default: '1000'
+      repeat_count:
+        description: 'Times to repeat this run in sequence (use >1 with magnitude 0 for baseline noise characterisation)'
+        required: true
+        default: '1'
 
 concurrency:
   group: prat-harness
@@ -92,21 +96,22 @@ jobs:
       - name: Install Playwright browsers
         run: pwsh ClientPortal.PRAT.Acceptance/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 
-      - name: Run harness
+      - name: Run harness (repeated)
+        if: always()
         env:
           ENVIRON: REL
           FAULT_PROFILE: ${{ inputs.fault_profile }}
           FAULT_MAGNITUDE: ${{ inputs.fault_magnitude }}
-        run: >
-          dotnet test ClientPortal.PRAT.Acceptance
-          --no-build
-          --filter "Category=${{ steps.target.outputs.category }}"
-          --logger "trx;LogFileName=harness-results.trx"
-
-      - name: Write run metadata
-        if: always()
         run: |
-          cat <<EOF > ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
+          for i in $(seq 1 ${{ inputs.repeat_count }}); do
+            echo "=== Iteration $i of ${{ inputs.repeat_count }} ==="
+
+            dotnet test ClientPortal.PRAT.Acceptance \
+              --no-build \
+              --filter "Category=${{ steps.target.outputs.category }}" \
+              --logger "trx;LogFileName=harness-results.trx"
+
+            cat <<EOF > ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
           {
             "faultProfile": "${{ inputs.fault_profile }}",
             "faultMagnitude": ${{ inputs.fault_magnitude }},
@@ -115,23 +120,12 @@ jobs:
             "runId": "${{ github.run_id }}",
             "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             "ranAtUtc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "commitSha": "${{ github.sha }}"
+            "commitSha": "${{ github.sha }}",
+            "iteration": $i
           }
           EOF
 
-      - name: Upload results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: harness-results-${{ inputs.fault_profile }}
-          path: |
-            ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
-            ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
-
-      - name: Append run to dataset
-        if: always()
-        run: |
-          python3 - <<'PYEOF'
+            python3 - <<'PYEOF'
           import csv, json, os
           import xml.etree.ElementTree as ET
 
@@ -140,7 +134,7 @@ jobs:
           dataset_path = 'data/harness-results.csv'
 
           if not os.path.isfile(trx_path) or not os.path.isfile(meta_path):
-              print('No trx/metadata found (likely an earlier step failed before tests ran) — skipping append.')
+              print('No trx/metadata found — skipping append for this iteration.')
               raise SystemExit(0)
 
           with open(meta_path) as f:
@@ -161,13 +155,14 @@ jobs:
               'fault_profile': meta['faultProfile'],
               'fault_magnitude': meta['faultMagnitude'],
               'target_category': meta['targetCategory'],
+              'iteration': meta['iteration'],
               'scenario_name': ut.get('testName'),
               'outcome': ut.get('outcome'),
               'duration_seconds': parse_duration(ut.get('duration')),
           } for ut in root.iter(ns + 'UnitTestResult')]
 
           if not rows:
-              print('trx contained no results — skipping append.')
+              print('trx contained no results — skipping append for this iteration.')
               raise SystemExit(0)
 
           os.makedirs('data', exist_ok=True)
@@ -178,8 +173,19 @@ jobs:
                   writer.writeheader()
               writer.writerows(rows)
 
-          print(f'Appended {len(rows)} row(s) to {dataset_path}')
+          print(f'Appended {len(rows)} row(s) from iteration {meta["iteration"]} to {dataset_path}')
           PYEOF
+
+          done
+
+      - name: Upload results (final iteration only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-results-${{ inputs.fault_profile }}-${{ github.run_id }}
+          path: |
+            ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
+            ClientPortal.PRAT.Acceptance/TestResults/harness-metadata.json
 
       - name: Commit dataset update
         if: always()

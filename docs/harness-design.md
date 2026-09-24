@@ -336,3 +336,24 @@ working reliably via manual runs.
   gap). This is the honest final status for Concurrency in the Project
   Report: implemented and design-validated, not empirically proven,
   with the reasoning for that gap stated plainly rather than hidden.
+- **20th Sept 2026** — dataset accumulation pipeline confirmed working
+  via 3 real runs: metadata correctly joined per row, commits landing
+  as expected. But the data itself surfaced a real problem: at
+  `magnitude: 0` (a guaranteed no-op — `RetryFaultProfile.ApplyAsync`
+  returns before touching the page), `PasswordReset` (15.3s) and
+  `CancelPasswordReset` (18.0s) both failed. Across the three runs,
+  `CancelPasswordReset` shows 17.1s(fail)/18.0s(fail)/4.0s(pass) — the
+  same signature already found twice before (`LoginFieldValidation`
+  "empty", `GivenTheUserIsLoggedIn` during a Latency run): an
+  occasional multi-second stall somewhere in the flow, unrelated to any
+  injected fault. Three independent locations now — this is a genuine,
+  systemic characteristic of REL, not a one-off.
+  Consequence for the dataset: a row reading `fault_magnitude: 0,
+  outcome: Failed` is currently ambiguous — it could mean the mechanism
+  broke (it can't, the code guarantees a no-op) or REL was just slow
+  that moment. Training anything on these labels without accounting for
+  this would mean learning environmental noise alongside genuine
+  signal. Not yet resolved — options are an empirical baseline-noise
+  characterisation (repeated `magnitude: 0` runs to get an actual rate)
+  or documenting it as a known dataset limitation and proceeding as-is,
+  given timeline pressure. Decision pending.
