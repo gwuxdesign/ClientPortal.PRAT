@@ -519,7 +519,15 @@ working reliably via manual runs.
   more like an episodic bad spell on REL than independent noise per
   scenario. The 0.76% overall and 7.7% per-scenario figures are best
   read as lower bounds. Third, Latency at 2000 has a run (36879788575)
-  that stopped after 3 iterations; if it was triggered with 10 repeats
-  it stopped on a failure in iteration 4, which would be a real data
-  point near the threshold that was lost. To confirm from the Actions
-  history.
+  triggered with 5 repeats that stopped after 3. Confirmed from its log:
+  iterations 1 to 3 passed 8 of 8 and were recorded, iteration 4 had one
+  failure (`NavigationAfterLogin` "My profile": URL still the base page
+  after the 5000ms assertion window, `GET /profile` ending in
+  `net::ERR_ABORTED`, the delay-induced signature) and the script ended
+  there, so iteration 4's eight results and iteration 5 were lost. This
+  is a genuine failure at a magnitude that otherwise passed: across the
+  14 iterations observed at Latency 2000 (3 and 1 in this run, 10 in the
+  later run), 1 had a failure. By the mixed-outcome definition that
+  makes this condition flaky, and it puts the start of the threshold
+  zone at around 2000. To be recovered from the run's uploaded artifact
+  (the final iteration's `.trx`).
