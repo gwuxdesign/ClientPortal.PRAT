@@ -154,11 +154,16 @@ working reliably via manual runs.
   log, 1st Oct).
 - Why did Load at magnitude 750 with 5 repeats run for over two hours
   before being cancelled? Undiagnosed, as nothing survived to inspect.
-  Retest at 1 repeat and time a single iteration before scaling up.
+  Not reproduced on 3rd Oct: 750 at 1 repeat, and 1000 and 1250 at 5
+  repeats, all finished normally. Probably a one-off.
 - ~~Why did the sweep runs for Timing and Latency at 4000 to 10000 and
   Retry leave no rows?~~ Resolved 3rd Oct: a failing `dotnet test`
   ended the loop script before the append (see build log). Load at 750
   is a separate, still undiagnosed hang.
+- Do first iterations of a run fail more often than later ones (a
+  warm-up effect)? Suggestive but unproven, see the 3rd Oct entry on
+  the verified loop fix. Settle with more data from the planned sweep
+  before deciding whether to flag, filter or warm up.
 - ~~Timing for the Concurrency/Load heads-up to REL's security/fraud
   monitoring owner?~~ Decided 18th Sept not to pursue: no clear owner
   given the organisational changes. Concurrency remains unrun against
@@ -531,3 +536,56 @@ working reliably via manual runs.
   makes this condition flaky, and it puts the start of the threshold
   zone at around 2000. To be recovered from the run's uploaded artifact
   (the final iteration's `.trx`).
+- **3rd Oct 2026**: loop fix verified on a real run. Retry at
+  magnitude 1 with 10 repeats ran all ten iterations despite failures,
+  committed each iteration separately, and ended red as intended (40
+  rows). `PasswordReset` failed 10 of 10, the expected deterministic
+  result of aborting its first request; the two validation scenarios
+  passed 20 of 20. Retry at 1 is therefore now a clean
+  deterministic-fail example.
+  Observation to follow up: `CancelPasswordReset`, which the Retry
+  fault never touches, failed in iteration 1 of this run and then
+  passed nine times. Across all runs it has failed in 3 of 6 first
+  iterations and 0 of 19 later ones (if three failures were scattered
+  at random across those 25 executions, the chance of all landing in
+  the six first-iteration slots is under 1%). Across every baseline row
+  in every category, first iterations failed 2 of 33 and later ones 0 of
+  229. The failure modes seen are page-settling ones (a wait for the
+  "Forgotten password?" link timing out, and a click blocked by an
+  overlay from the page's portal root). Hypothesis, not established: a
+  warm-up effect, where the first execution of a run meets a slower REL
+  or a page that has not settled, which would also fit the earlier
+  episodic pattern (every recorded baseline failure was in a first
+  iteration). The Latency 2000 failure at iteration 4 is a different,
+  delay-driven mechanism. The sample is small and several ways of
+  slicing it were tried, so this is suggestive only. The `iteration`
+  column is already recorded, so it can be used as a feature or to flag
+  first iterations. Whether to add an unrecorded warm-up iteration is
+  undecided; the effect is itself a realistic form of flakiness (a cold
+  start), so filtering it out is not obviously right.
+- **3rd Oct 2026**: first full magnitude sweep with the fixed loop. All
+  runs recorded every iteration. Findings per condition (failed / total
+  runs of a scenario): Timing and Latency pass up to 2000, give mixed
+  results at 3000, and fail deterministically from 4000 (Latency fails
+  the same five scenarios in all ten iterations at both 4000 and 5000;
+  Timing's valid login fails from 4000 and invalid login from 5000).
+  Mixed cells at 3000: Timing valid login 1/5, Latency Cookie policy 2/5
+  and Terms and conditions 2/5. Load: 750 and 1000 clean, 1250 had one
+  failure (`Oldest first`, 1 iteration of 5), 1500 not run. Scenarios
+  that never reach the injection point (Login field validation, Logout,
+  and the navigation scenarios that do not click through a menu) never
+  fail at any magnitude.
+  Two runs used the wrong profile because the dropdown reset to Timing:
+  a second Timing at 8000 (meant to be Latency) and Timing at 1500
+  (meant to be Load). Both are valid extra Timing data, but Latency at
+  8000 and Load at 1500 were not run. Latency at 8000 is not needed as
+  4000 and above already fail deterministically; Load at 1500 is.
+  Label counts, using full scenario name, profile and magnitude as the
+  unit with at least 5 repeats: 107 conditions, of which 7 flaky, 84
+  always pass and 16 always fail (up from 13 conditions and 3 flaky on
+  24th Sept). Seven positives is still too few for a trustworthy
+  precision and recall figure, and many of the 84 passes are scenarios
+  the fault cannot affect, so they are easy negatives. Next batch aims
+  to add mixed-outcome conditions around the observed band: Timing and
+  Latency at 2500 and 3500 plus more repeats at 3000, and Load at 1250
+  (repeat), 1500 and 1750.
