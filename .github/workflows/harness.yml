@@ -107,13 +107,21 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
+          # This step runs under bash -e, and dotnet test exits non-zero
+          # whenever any test fails. Without handling that, the loop would
+          # stop at the first iteration containing a failure and discard
+          # its results, which are exactly the data the harness exists to
+          # collect. So: record the exit code, carry on, and report it at
+          # the end so the run still shows red if any iteration failed.
+          test_rc=0
+
           for i in $(seq 1 ${{ inputs.repeat_count }}); do
             echo "=== Iteration $i of ${{ inputs.repeat_count }} ==="
 
             dotnet test ClientPortal.PRAT.Acceptance \
               --no-build \
               --filter "Category=$TARGET_CATEGORY" \
-              --logger "trx;LogFileName=harness-results.trx"
+              --logger "trx;LogFileName=harness-results.trx" || test_rc=$?
 
             export ITERATION=$i
             export RAN_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -197,11 +205,19 @@ jobs:
             git add data/harness-results.csv
             if ! git diff --staged --quiet; then
               git commit -m "Append harness run ${{ github.run_id }} iteration $i (${{ inputs.fault_profile }}, magnitude ${{ inputs.fault_magnitude }})"
-              git pull --rebase --autostash
-              git push
+              # A failed pull or push is not fatal: the commit stays local
+              # and the next iteration's push carries it along.
+              git pull --rebase --autostash || { git rebase --abort 2>/dev/null; echo "Pull failed, will retry next iteration."; }
+              git push || echo "Push failed, will retry next iteration."
             fi
 
           done
+
+          # Final attempt in case the last iteration's push was rejected.
+          git push || echo "Final push failed: some local commits were not pushed."
+
+          # Report the test result now that every iteration has been captured.
+          exit "$test_rc"
 
       - name: Upload results (final iteration only)
         if: always()

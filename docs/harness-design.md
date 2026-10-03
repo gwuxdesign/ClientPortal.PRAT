@@ -155,8 +155,10 @@ working reliably via manual runs.
 - Why did Load at magnitude 750 with 5 repeats run for over two hours
   before being cancelled? Undiagnosed, as nothing survived to inspect.
   Retest at 1 repeat and time a single iteration before scaling up.
-- Why did the sweep runs for Timing and Latency at 4000 to 10000,
-  Retry and Load leave no rows? Unconfirmed (see build log, 1st Oct).
+- ~~Why did the sweep runs for Timing and Latency at 4000 to 10000 and
+  Retry leave no rows?~~ Resolved 3rd Oct: a failing `dotnet test`
+  ended the loop script before the append (see build log). Load at 750
+  is a separate, still undiagnosed hang.
 - ~~Timing for the Concurrency/Load heads-up to REL's security/fraud
   monitoring owner?~~ Decided 18th Sept not to pursue: no clear owner
   given the organisational changes. Concurrency remains unrun against
@@ -386,14 +388,16 @@ working reliably via manual runs.
 - **24th Sept 2026**: added a `repeat_count` input to the workflow so
   one trigger can run the same configuration N times in sequence (for
   baseline noise characterisation). A small verification run (2
-  repeats) caught a real bug before the full sweep: the loop contained
-  two nested heredocs (one writing a metadata JSON file, one running
-  the Python append script), the metadata file was not produced, and
-  the append step then skipped every iteration, leaving zero new rows.
-  Most likely cause was the nested heredocs; fixed by dropping the JSON
-  file entirely, so metadata is now passed as environment variables
-  and read by the single remaining heredoc. The cheap check first
-  avoided a far more expensive failure later.
+  repeats) appended no rows and uploaded no metadata file. This was
+  first diagnosed as a problem with two nested heredocs in the loop, and
+  "fixed" by passing metadata as environment variables instead of a
+  JSON file. That diagnosis was wrong (corrected 3rd Oct, see below):
+  the run had failing tests, and the real cause was the failing
+  `dotnet test` ending the script before the append. The re-run passed
+  because nothing failed, not because of the change. The environment
+  variable approach is simpler and has been kept, but it was not the
+  fix. The small check first was still worth it, as it surfaced the
+  symptom before the full sweep.
   Two operational notes from the same session. Input fields in the
   `on: workflow_dispatch: inputs:` block are read from `main`'s copy of
   the workflow whatever branch is selected, so a change to the inputs
@@ -428,7 +432,8 @@ working reliably via manual runs.
   Baseline labels from Login, Navigation and Documents can be trusted
   as they stand; only `PasswordReset` and `CancelPasswordReset` carry a
   quantified background noise rate to account for when interpreting
-  their failure labels.
+  their failure labels. See the 3rd Oct entry for a survivorship caveat
+  on these figures.
 - **24th Sept 2026**: first step for the flaky test classifier
   (Objective 2): defined the label. A single row's outcome does not
   indicate flakiness; a condition is flaky only when repeats of the same
@@ -462,12 +467,14 @@ working reliably via manual runs.
   rejected after overlapping runs; or queued triggers superseded by the
   workflow's concurrency group (GitHub keeps one pending run per group
   and cancels earlier pending ones). The status of each run in the
-  Actions history would settle which.
+  Actions history would settle which. Resolved on 3rd Oct: none of
+  these, see below.
 - **3rd Oct 2026**: workflow changed to commit and push after every
   iteration instead of once after the whole loop, with a pull and
   rebase before each push, so a run that is cancelled or cut short
-  keeps every iteration completed so far. This removes the
-  all-or-nothing loss seen on 1st Oct. It only touches the job steps,
+  keeps every iteration completed so far. This protects against
+  cancellation but, as found later the same day, it was not the cause
+  of the 1st Oct losses. It only touches the job steps,
   not the inputs, so it does not need syncing to `main`. Plan: re-run
   the Timing and Latency levels from 4000 to 10000, Retry and the Load
   levels, one trigger at a time and letting each commit land before the
@@ -475,3 +482,44 @@ working reliably via manual runs.
   before scaling up. Objective 2's original mid-September target has
   passed because the harness and dataset work ran longer than planned,
   for the reasons recorded above.
+- **3rd Oct 2026**: root cause of the missing sweep data found, and it
+  is not what the entries above suspected. The workflow's loop step
+  runs under `bash -e`, and `dotnet test` exits non-zero whenever any
+  test fails, so the first iteration containing a failure ended the
+  whole script before that iteration's rows were appended or committed.
+  A log from one of the lost runs (Retry, PasswordReset) shows exactly
+  this: iteration 1 of 10, one test failed (the expected result of the
+  Retry fault, via the aborted POST), then "Process completed with exit
+  code 1" with no iteration 2. Reproduced locally with a stub that
+  fails like `dotnet test`: the loop stopped after iteration 1 and no
+  CSV was written. This explains every missing run in the sweep at
+  once: Timing and Latency at 4000 to 10000 and Retry at 1 all fail by
+  design, so each stopped at iteration 1 and recorded nothing. It also
+  means the harness could not record failures in repeated mode at all,
+  which is the data the classifier needs most. Runs where every test
+  passed completed normally, which is why only those persisted (Timing
+  and Latency at 2000, and the baseline sweeps).
+  Fix: the loop records the test exit code and carries on, a failed git
+  pull or push is no longer fatal, and the step exits with the recorded
+  code at the end so a run containing failures still shows red.
+  Verified locally with stubs: a failing test now gives every iteration
+  recorded, every row written and exit code 1, while an all-pass run
+  gives exit 0. The earlier same-day change (commit after every
+  iteration) was not the fix for this and only helps against
+  cancellation.
+  Consequences for existing data. First, the baseline sweeps stand as
+  observations: each ran all 10 iterations, so no iteration in them
+  failed. Second, there is survivorship bias in the noise figures: a
+  baseline run that failed at iteration 1 left no rows. One is known,
+  the first Retry verification run on 24th Sept (magnitude 0), where
+  PasswordReset and CancelPasswordReset failed and nothing was
+  recorded. The 2 baseline failures in the dataset both come from a
+  single run on 20th Sept, and the failing runs cluster early (the 20th,
+  then the morning of the 24th) while later runs were clean, which looks
+  more like an episodic bad spell on REL than independent noise per
+  scenario. The 0.76% overall and 7.7% per-scenario figures are best
+  read as lower bounds. Third, Latency at 2000 has a run (36879788575)
+  that stopped after 3 iterations; if it was triggered with 10 repeats
+  it stopped on a failure in iteration 4, which would be a real data
+  point near the threshold that was lost. To confirm from the Actions
+  history.
