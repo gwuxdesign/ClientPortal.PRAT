@@ -192,6 +192,15 @@ jobs:
           print(f'Appended {len(rows)} row(s) from iteration {os.environ["ITERATION"]} to {dataset_path}')
           PYEOF
 
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data/harness-results.csv
+            if ! git diff --staged --quiet; then
+              git commit -m "Append harness run ${{ github.run_id }} iteration $i (${{ inputs.fault_profile }}, magnitude ${{ inputs.fault_magnitude }})"
+              git pull --rebase --autostash
+              git push
+            fi
+
           done
 
       - name: Upload results (final iteration only)
@@ -200,16 +209,3 @@ jobs:
         with:
           name: harness-results-${{ inputs.fault_profile }}-${{ github.run_id }}
           path: ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx
-
-      - name: Commit dataset update
-        if: always()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/harness-results.csv
-          if ! git diff --staged --quiet; then
-            git commit -m "Append harness run ${{ github.run_id }} (${{ inputs.fault_profile }}, magnitude ${{ inputs.fault_magnitude }})"
-            git push
-          else
-            echo "Nothing to commit (no new rows)."
-          fi

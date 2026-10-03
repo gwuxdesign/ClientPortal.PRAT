@@ -29,17 +29,22 @@ never actually touched by any of this work.
    grep, no references anywhere in the harness code. This was a
    reasonable substitution (it works, proven across all five profiles)
    but the original plan's wording was never corrected until now.
-4. **Result capture and labelling** — ~~extends `TestRunReport`~~ **not
-   yet built at all**, this was assumed to be in progress but genuinely
-   isn't. Every run so far produced a `.trx` with outcome and duration,
-   but nothing records which fault profile or magnitude was active —
-   that context has only ever existed in conversation and CI logs, never
-   attached to the result itself. None of the runs done so far are
-   usable as labelled data as they stand. Real next step: a metadata
-   sidecar written alongside each `.trx` (see build log, 19th Sept).
-5. **Labelled training dataset** — structured output feeding both the flaky
-   test classifier and the failure root-cause classifier. Not started;
-   depends on stage 4 actually existing first.
+4. **Result capture and labelling** (built 19th to 24th Sept):
+   ~~extends `TestRunReport`~~ **actually built as** a step inside the
+   harness workflow that, after each iteration, parses the `.trx` and
+   appends one row per scenario to `data/harness-results.csv` in the
+   repo, joined with the run's metadata (fault profile, magnitude,
+   target category, iteration, run id and URL, commit, timestamp), then
+   commits it back to the branch. Run metadata reaches the script as
+   environment variables; the original JSON sidecar was dropped (see
+   build log, 24th Sept). Guards refuse to append if the header no
+   longer matches the schema, and repair a missing trailing newline
+   before appending.
+5. **Labelled training dataset**: the CSV above is the dataset. It
+   exists and is growing, but is not yet large or balanced enough to
+   train a classifier on (see build log, 24th Sept and 1st Oct). The
+   next piece of work is generating it at scale through a magnitude
+   sweep.
 
 ## Fault profiles
 
@@ -140,11 +145,18 @@ working reliably via manual runs.
 - ~~Data seeding approach for the load profile (against REL test
   data)?~~ Resolved via response-rewriting rather than real data
   seeding — see build log, 17th–18th Sept.
-- Exact `FAULT_MAGNITUDE` ranges per profile, beyond the boundaries
-  already found empirically (Timing/Latency: 500 passes, 12000 fails;
-  Retry: 0 passes, 1 fails; Load: 500 passes, 2000 fails) — tighter
-  bounds could be found later if useful for the training dataset, not
-  currently planned.
+- Exact `FAULT_MAGNITUDE` ranges per profile. Boundaries found so far:
+  Timing and Latency pass at 500 and 2000 and fail at 12000; Retry
+  passes at 0 and fails at 1; Load passes at 500 and fails at 2000.
+  This is now actively needed rather than optional: the classifier
+  needs examples across the range, especially near each failure
+  threshold, not only at the extremes. Sweep in progress (see build
+  log, 1st Oct).
+- Why did Load at magnitude 750 with 5 repeats run for over two hours
+  before being cancelled? Undiagnosed, as nothing survived to inspect.
+  Retest at 1 repeat and time a single iteration before scaling up.
+- Why did the sweep runs for Timing and Latency at 4000 to 10000,
+  Retry and Load leave no rows? Unconfirmed (see build log, 1st Oct).
 - ~~Timing for the Concurrency/Load heads-up to REL's security/fraud
   monitoring owner?~~ Decided 18th Sept not to pursue: no clear owner
   given the organisational changes. Concurrency remains unrun against
@@ -336,6 +348,20 @@ working reliably via manual runs.
   gap). This is the honest final status for Concurrency in the Project
   Report: implemented and design-validated, not empirically proven,
   with the reasoning for that gap stated plainly rather than hidden.
+- **19th Sept 2026**: corrected the architecture description. The
+  original plan had the harness extending `TestRunner.Web`'s
+  `TestRunnerService` and `TestRunReport`; a search confirmed nothing
+  in the harness code ever touched `TestRunner.Web`. The orchestrator
+  was in practice the GitHub Actions workflow, and result capture and
+  labelling had never been built, so none of the earlier runs were
+  usable as labelled data (the `.trx` records outcome and duration, but
+  not which fault profile or magnitude was active). Decisions: treat
+  all earlier ad-hoc runs as validation rather than data (they were not
+  retained, so no retrofitting); store results as a single accumulating
+  CSV in the repo, committed back by the workflow after each run,
+  rather than a folder of files or an external database (no new
+  service, and it protects the timeline). Architecture section above
+  updated to match.
 - **20th Sept 2026** — dataset accumulation pipeline confirmed working
   via 3 real runs: metadata correctly joined per row, commits landing
   as expected. But the data itself surfaced a real problem: at
@@ -357,3 +383,95 @@ working reliably via manual runs.
   characterisation (repeated `magnitude: 0` runs to get an actual rate)
   or documenting it as a known dataset limitation and proceeding as-is,
   given timeline pressure. Decision pending.
+- **24th Sept 2026**: added a `repeat_count` input to the workflow so
+  one trigger can run the same configuration N times in sequence (for
+  baseline noise characterisation). A small verification run (2
+  repeats) caught a real bug before the full sweep: the loop contained
+  two nested heredocs (one writing a metadata JSON file, one running
+  the Python append script), the metadata file was not produced, and
+  the append step then skipped every iteration, leaving zero new rows.
+  Most likely cause was the nested heredocs; fixed by dropping the JSON
+  file entirely, so metadata is now passed as environment variables
+  and read by the single remaining heredoc. The cheap check first
+  avoided a far more expensive failure later.
+  Two operational notes from the same session. Input fields in the
+  `on: workflow_dispatch: inputs:` block are read from `main`'s copy of
+  the workflow whatever branch is selected, so a change to the inputs
+  needs syncing to `main`, whereas a change to the job steps does not.
+  And because the workflow commits to the working branch after each
+  run, a local branch diverges from the remote unless a pull comes
+  before any local edit.
+- **24th Sept 2026**: two data-quality incidents in the dataset CSV,
+  both noticed because GitHub's CSV preview stopped rendering as a
+  table. First, a schema mismatch: the `iteration` column was added
+  after the file already existed with an older 10-column header, so new
+  rows had 11 fields against a 10-field header. Fixed with a one-off
+  migration (header rewritten, `iteration` backfilled as 1 for earlier
+  rows, since each was genuinely a single execution). Second, a
+  missing trailing newline: a local edit stripped the file's final
+  newline, so the next appended row fused onto the previous line and
+  produced one 21-column row, which was split back into two. The
+  workflow's append step now refuses to append when the existing
+  header does not match the current schema, and adds a trailing
+  newline if one is missing. Edits to the CSV are best applied with a
+  terminal copy rather than an editor, which can strip the final
+  newline.
+- **24th Sept 2026**: baseline noise characterisation complete: 10
+  repeats of `magnitude: 0` across all four categories, 262 baseline
+  rows. Login, Navigation and Documents: 0 failures in 210 rows.
+  PasswordReset: 2 failures in 52 rows (3.8%), both in `PasswordReset`
+  and `CancelPasswordReset` (1 in 13 each, 7.7%); `PasswordResetValidation`
+  passed every repeat. Overall 2 in 262 (0.76%), though that average
+  hides how concentrated the noise is. This is the same intermittent
+  REL slowness seen earlier in other scenarios. It resolves the
+  pending decision above: characterised rather than accepted as-is.
+  Baseline labels from Login, Navigation and Documents can be trusted
+  as they stand; only `PasswordReset` and `CancelPasswordReset` carry a
+  quantified background noise rate to account for when interpreting
+  their failure labels.
+- **24th Sept 2026**: first step for the flaky test classifier
+  (Objective 2): defined the label. A single row's outcome does not
+  indicate flakiness; a condition is flaky only when repeats of the same
+  scenario, profile and magnitude give mixed outcomes. A test that
+  always fails at a high magnitude is deterministically broken by the
+  fault, not flaky. Applied across the whole dataset (parameterised
+  examples grouped by scenario), only 13 conditions had enough repeats
+  to assess: 3 flaky (all `PasswordReset` or `CancelPasswordReset`), 9
+  deterministic passes and 1 deterministic fail. That is too few and
+  too imbalanced to train on. The dataset was built to prove the
+  profiles and characterise baseline noise, not to train a classifier.
+  Next step is a deliberate sweep across magnitude levels between each
+  profile's known pass and fail points, each repeated enough to label
+  reliably, concentrating near each threshold where genuine flakiness
+  is most likely.
+- **1st Oct 2026**: first pass of the magnitude sweep, mostly not
+  captured. Only three runs persisted rows: Timing at 2000 (10 repeats,
+  0 failures) and Latency at 2000 (two runs, 3 and 10 repeats, 0
+  failures). Both pass cleanly at 2000, consistent with the earlier
+  boundaries (clean at 500, failing at 12000). Nothing persisted for
+  Timing or Latency at 4000 to 10000, for Retry, or for Load. Watched
+  live, most of those runs were failing, but without surviving rows that
+  cannot be confirmed or characterised. Load at 750 with 5 repeats ran
+  for over two hours and was cancelled; the cause is undiagnosed. The
+  only hypothesis is that 750 (about 4,500 documents) sits in a zone
+  slower than the clean 500 case but not failing fast the way 2000 does
+  through a bounded click timeout, compounding across 8 scenarios and 5
+  repeats. Why the other runs left no rows is also unconfirmed.
+  Candidates: runs cancelled part way (the workflow then committed only
+  after the whole loop, so cancellation discarded everything); a push
+  rejected after overlapping runs; or queued triggers superseded by the
+  workflow's concurrency group (GitHub keeps one pending run per group
+  and cancels earlier pending ones). The status of each run in the
+  Actions history would settle which.
+- **3rd Oct 2026**: workflow changed to commit and push after every
+  iteration instead of once after the whole loop, with a pull and
+  rebase before each push, so a run that is cancelled or cut short
+  keeps every iteration completed so far. This removes the
+  all-or-nothing loss seen on 1st Oct. It only touches the job steps,
+  not the inputs, so it does not need syncing to `main`. Plan: re-run
+  the Timing and Latency levels from 4000 to 10000, Retry and the Load
+  levels, one trigger at a time and letting each commit land before the
+  next; retest Load at 750 with a single repeat and time one iteration
+  before scaling up. Objective 2's original mid-September target has
+  passed because the harness and dataset work ran longer than planned,
+  for the reasons recorded above.
