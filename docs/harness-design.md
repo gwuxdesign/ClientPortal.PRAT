@@ -164,6 +164,10 @@ working reliably via manual runs.
   warm-up effect)? Suggestive but unproven, see the 3rd Oct entry on
   the verified loop fix. Settle with more data from the planned sweep
   before deciding whether to flag, filter or warm up.
+- Would a step-level timing feature lift classifier precision? The
+  `.trx` holds per-step timings for passing and failing tests, but only
+  total duration is kept. Needs a script change, a CSV schema migration
+  and a re-run of the useful magnitude band (see build log, 4th Oct).
 - ~~Timing for the Concurrency/Load heads-up to REL's security/fraud
   monitoring owner?~~ Decided 18th Sept not to pursue: no clear owner
   given the organisational changes. Concurrency remains unrun against
@@ -589,3 +593,81 @@ working reliably via manual runs.
   to add mixed-outcome conditions around the observed band: Timing and
   Latency at 2500 and 3500 plus more repeats at 3000, and Load at 1250
   (repeat), 1500 and 1750.
+- **3rd Oct 2026**: second sweep batch (Timing and Latency at 2500,
+  3000 and 3500, Load at 1250, 1500 and 1750, all at 5 repeats). Every
+  run used the intended profile and recorded every iteration.
+  Latency shows a smooth dose-response. The five click-through
+  navigation scenarios fail 0 to 20% of the time at 2500, 10 to 40% at
+  3000 (10 repeats combined with the earlier batch), 40 to 80% at 3500,
+  and 100% from 4000. Timing is a cliff instead: no failures at 2500,
+  3000 (this batch) or 3500, then the valid login fails 5 of 5 at
+  4000, so it contributes few mixed conditions (one: valid login at
+  3000, 1 of 10). Load stayed clean at 1250 (0 of 40 this time; 1
+  failure in 80 rows overall), 1500 and 1750. Its known failure at 2000
+  predates the CSV, so the dataset has no Load failure level yet.
+  Label counts (conditions with at least 5 repeats): 149, of which 16
+  flaky, 117 always pass, 16 always fail (previously 107, 7, 84, 16).
+  Flaky by profile: Latency 11, Retry 3 (background noise, not
+  fault-driven), Timing 1, Load 1.
+  First-iteration check inside the mixed conditions: failure rate 34%
+  in iteration 1 (10 of 29) against 22% in later iterations (24 of 109).
+  Not a meaningful difference at this sample size, so there is no
+  evidence of a warm-up effect for fault-induced flakiness. The earlier
+  baseline PasswordReset pattern stays an open question and could be
+  tested with short Retry runs at magnitude 0 spread across a session.
+  Known mislabel: Latency 2000 `My profile` had one failure in
+  iteration 4 of a run lost to the loop bug (artifact not yet
+  recovered), so it is currently labelled always-pass when it is mixed
+  (1 of 14).
+  Concern to resolve before modelling: 16 positives, 11 from a single
+  profile, and the flaky label is defined from the same repeats that
+  per-condition features would be computed from, so any feature built
+  from failed runs leaks the label. The unit of classification and the
+  feature set need a decision before any training.
+- **4th Oct 2026**: modelling design settled and a first baseline
+  measured (Objective 2).
+  Design. Unit: one condition, meaning a scenario at one profile and
+  magnitude with at least 5 repeats. Label: flaky when the repeats gave
+  both passes and failures. Always-fail conditions are deterministic
+  breakage and are left out of the modelling population because they
+  have no passing runs to derive features from, which leaves 133
+  conditions of which 16 are flaky. Leakage rule: features use passing
+  runs only and are measured against the scenario's own no-fault
+  baseline (median passing duration at magnitude 0). Never used:
+  failed-run durations, failure counts, the number of passing runs, the
+  profile or the injected magnitude (the last two would let a model
+  learn the harness settings instead of flakiness). Evaluation:
+  leave-one-scenario-out cross-validation, with every magnitude and
+  profile of a scenario held out together, because neighbouring
+  magnitudes of one scenario are near copies of each other; precision
+  and recall at a 0.5 threshold with bootstrap 95% confidence intervals,
+  plus AUC. Code is in `analysis/`: `build_training_table.py` writes
+  `data/training-table.csv` and `evaluate_baseline.py` reproduces the
+  numbers below (needs pandas and scikit-learn).
+  Baseline results, with median and maximum passing-run duration
+  relative to baseline as the features. All profiles: AUC 0.61,
+  precision 0.20 (95% CI 0.09 to 0.31), recall 0.69. Delay-type faults
+  only (Timing and Latency, 86 conditions, 12 flaky): AUC 0.87,
+  precision 0.42 (0.24 to 0.62), recall 0.83 (0.58 to 1.00). Within a
+  profile, slowness of passing runs separates flaky from stable well for
+  Latency and Timing (univariate AUC 0.94 and 0.95) but not for Load
+  (0.36, inverted) or the Retry-category background noise (0.50), so the
+  signal is specific to delay-type mechanisms. Dispersion of passing
+  durations added nothing (AUC 0.60 alone, no gain when combined).
+  Against the objective: the ToR target of at least 75% precision and
+  recall is not met. Recall is high in the delay-type scope; precision
+  is the weakness at about 40%, because many conditions are slowed by
+  the fault yet stay stable and look identical to a total-duration
+  feature.
+  Likely improvement: the `.trx` stores per-step timings in its standard
+  output for passing and failing tests alike (confirmed on a real
+  file), but the append script keeps only total duration. A step-level
+  feature, for example the longest step against the 5000ms assertion
+  window, matches the real failure mechanism far more closely. Existing
+  rows do not have it, so the useful band (Latency 2000 to 4000, Timing
+  3000 to 4000, Load 1750 to 2000) would need re-running after the
+  script change, and the CSV needs a schema migration. Not yet done.
+  To raise with the supervisor: the objective assumed a classifier
+  reaching 75% on historical logs. The evidence so far supports a
+  narrower claim (delay-type flakiness, high recall, moderate
+  precision) together with a clear account of why.
