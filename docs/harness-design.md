@@ -706,3 +706,25 @@ working reliably via manual runs.
   Existing rows have no step timings and cannot be backfilled, since
   the full `.trx` files were not kept. The training table builder does
   not use the new column yet; that follows once new data exists.
+- **4th Oct 2026**: step timing capture verified on a real run (Latency,
+  magnitudes 0 and 3000, 2 repeats): 32 rows, four separate commits,
+  `step_seconds` populated on every row, 12-column schema intact.
+  First look at the data (one run, so illustrative only). Failing
+  assertion steps show exactly `Then=5.0`, the 5000ms assertion window
+  expiring. In passing runs the longest `Then` step has a median of
+  0.9s at magnitude 0 and 3.9s at 3000, with a maximum of 8.7s: a step
+  can hold more than one assertion, each with its own 5s window, so a
+  step total can exceed 5s and still pass. A headroom feature has to
+  allow for that and should not simply subtract the step time from 5s.
+  The single baseline failure in the run was the `Given the user is
+  logged in` step reaching 13.1s (the 10s action timeout), in the first
+  execution of the run.
+  Updated tally of baseline failures: 3 in 41 first iterations and 0 in
+  237 later ones, in two categories. Two of the three are one episode
+  (20th Sept), so there are two independent episodes, and a chance
+  pattern of that kind would be roughly 1 in 50. Still suggestive only.
+  Note for the analysis: with several magnitudes stacked in one run,
+  the `iteration` column restarts at each magnitude, so it no longer
+  identifies a cold start. Test the warm-up idea using position within
+  the run (the earliest `ran_at_utc` per `run_id`), not the iteration
+  column.
