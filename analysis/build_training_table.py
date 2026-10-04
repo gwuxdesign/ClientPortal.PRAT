@@ -7,18 +7,37 @@ Label: flaky = the repeats gave BOTH passes and failures. Always-pass and
 always-fail conditions are not flaky (an always-fail condition is
 deterministically broken by the fault).
 
+Rows: by default only rows that carry per-step timings (step_seconds) are
+used, so every feature set is computed on exactly the same conditions.
+Older rows have no step timings. With --all-rows they are included: the
+total-duration features then use every passing run, while the step
+features use only the step-timed passing runs and are empty (not zero)
+for a condition that has none.
+
 Leakage rule (important): the label is defined from the outcomes of these
 same repeats, so features must not be built from anything that reveals
-outcomes. Features here use PASSING runs only, measured against the
-scenario's own no-fault baseline. Never use: failed-run durations, failure
-counts, the number of passing runs, the fault profile or the injected
-magnitude. Feature columns are prefixed feat_ so downstream code can select
-them explicitly and cannot pick up a leaky column by accident.
+outcomes. Features use PASSING runs only. Never use: failed-run durations,
+failure counts, the number of passing runs, the fault profile or the
+injected magnitude. Feature columns are prefixed feat_ so downstream code
+selects them explicitly and cannot pick up a leaky column by accident.
+
+Features (all from passing runs of the condition):
+  feat_median_pass_ratio, feat_max_pass_ratio
+      total scenario duration relative to the scenario's no-fault baseline
+  feat_then_median_s, feat_then_max_s
+      the longest assertion ("Then") step of each run, in seconds. Assertions
+      have a 5 second window, so this is the headroom signal. A step can hold
+      more than one assertion, so it can exceed 5 s and still pass.
+  feat_action_median_s, feat_action_max_s
+      the longest non-assertion step of each run (actions have a 10 s
+      timeout)
 
 Usage (from the repo root):  python analysis/build_training_table.py
 """
+import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 MIN_REPEATS = 5
@@ -26,9 +45,28 @@ SRC = Path("data/harness-results.csv")
 OUT = Path("data/training-table.csv")
 
 
-def build(df: pd.DataFrame) -> pd.DataFrame:
+def parse_steps(text):
+    """'Given=2.1;Then=3.8' -> [('Given', 2.1), ('Then', 3.8)]"""
+    if not isinstance(text, str) or not text:
+        return []
+    return [(p.split("=")[0], float(p.split("=")[1])) for p in text.split(";") if "=" in p]
+
+
+def longest(steps, assertion):
+    secs = [s for k, s in steps if (k == "Then") == assertion]
+    return max(secs) if secs else 0.0
+
+
+def build(df: pd.DataFrame, steps_only: bool = True) -> pd.DataFrame:
     df = df.copy()
+    if steps_only:
+        df = df[df.step_seconds.notna() & (df.step_seconds != "")]
     df["passed"] = df["outcome"].eq("Passed")
+    # A row without step timings has UNKNOWN step features (NaN), not zero.
+    has_steps = df.step_seconds.notna() & (df.step_seconds != "")
+    parsed = df.step_seconds.map(parse_steps).where(has_steps)
+    df["then_max"] = parsed.map(lambda s: longest(s, True) if isinstance(s, list) else np.nan)
+    df["action_max"] = parsed.map(lambda s: longest(s, False) if isinstance(s, list) else np.nan)
 
     # Per-scenario no-fault baseline: median duration of passing runs at magnitude 0.
     baseline = (
@@ -44,10 +82,10 @@ def build(df: pd.DataFrame) -> pd.DataFrame:
         repeats = len(d)
         if repeats < MIN_REPEATS:
             continue
-        passing = d[d.passed].duration_seconds
-        failures = repeats - len(passing)
+        p = d[d.passed]
+        failures = repeats - len(p)
         base = baseline.get(scenario)
-        has_features = len(passing) > 0 and base is not None
+        ok = len(p) > 0
         rows.append(
             {
                 # identifiers and label metadata (NOT features)
@@ -60,16 +98,20 @@ def build(df: pd.DataFrame) -> pd.DataFrame:
                 else "always_fail" if failures == repeats
                 else "always_pass",
                 "is_flaky": int(0 < failures < repeats),
-                # features (passing runs only, relative to own baseline)
-                "feat_median_pass_ratio": passing.median() / base if has_features else None,
-                "feat_max_pass_ratio": passing.max() / base if has_features else None,
+                # features: passing runs only
+                "feat_median_pass_ratio": p.duration_seconds.median() / base if ok and base else None,
+                "feat_max_pass_ratio": p.duration_seconds.max() / base if ok and base else None,
+                "feat_then_median_s": p.then_max.median() if ok else None,
+                "feat_then_max_s": p.then_max.max() if ok else None,
+                "feat_action_median_s": p.action_max.median() if ok else None,
+                "feat_action_max_s": p.action_max.max() if ok else None,
             }
         )
     return pd.DataFrame(rows)
 
 
 if __name__ == "__main__":
-    table = build(pd.read_csv(SRC))
+    table = build(pd.read_csv(SRC), steps_only="--all-rows" not in sys.argv)
     table.to_csv(OUT, index=False)
     print(f"wrote {OUT}: {len(table)} conditions")
     print(table.label.value_counts().to_string())

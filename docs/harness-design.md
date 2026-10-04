@@ -728,3 +728,93 @@ working reliably via manual runs.
   identifies a cold start. Test the warm-up idea using position within
   the run (the earliest `ran_at_utc` per `run_id`), not the iteration
   column.
+- **4th Oct 2026**: step-level sweep complete and evaluated. All seven
+  triggers landed: 752 rows, every one with step timings. Load at 2000
+  passed 5 of 5, so the earlier failure there did not reproduce (the CSV
+  holds one Load failure in total, at 1250). Latency at 2000 had a
+  failure in 1 of 5 iterations. Timing at 3000 and 3500 each had one
+  failure in 10, and 4000 fails every time (valid login only).
+  The training table was rebuilt on step-timed rows only: 101
+  conditions, 18 flaky (Latency 16, Timing 2), 77 always pass, 6 always
+  fail. Load and Retry produced no flaky conditions in this batch. With
+  `--all-rows` the older rows are included (157 conditions, 22 flaky),
+  with step features taken from the step-timed runs only. The earlier
+  149-condition table cannot be reproduced exactly from current data,
+  because new runs add repeats to the same conditions; its results are
+  recorded above. A bug in the first version of `--all-rows` (a row
+  with no step timings was treated as a step time of zero instead of
+  unknown) was found and fixed on 4th Oct; the default mode and every
+  number published here were not affected.
+  Feature sets compared on identical conditions with leave-one-scenario-out
+  cross-validation (threshold 0.5, bootstrap 95% intervals):
+  All profiles (95 conditions, 18 flaky): total duration ratio, AUC
+  0.40, precision 0.13, recall 0.39. Assertion step, AUC 0.84,
+  precision 0.57 (0.38 to 0.75), recall 0.89 (0.73 to 1.00).
+  Delay-type only (67 conditions, 18 flaky): total duration ratio, AUC
+  0.83, precision 0.60 (0.40 to 0.80), recall 0.83 (0.64 to 1.00).
+  Assertion step, AUC 0.80, precision 0.59 (0.40 to 0.77), recall 0.89
+  (0.72 to 1.00). Adding action steps changed nothing. The best balanced
+  precision and recall over all thresholds (optimistic, since the
+  threshold is tuned on the same predictions) is about 0.65 to 0.68 for
+  every feature set.
+  Reading: the step feature's gain is across profiles. It does not
+  mistake Load's slow-but-safe runs for risk, which the total duration
+  feature does, and it is directly interpretable. Within delay-type
+  faults it only matches total duration and did not lift precision
+  there. Both give about 0.6 precision at about 0.85 recall, so the ToR
+  target of 75% precision and recall is not demonstrated, although the
+  upper end of the precision interval does not exclude it.
+  Errors: of 11 false positives, most sit at 2000 to 2500 with 5 to 10
+  repeats and no failures, with the same assertion time as flaky
+  sibling conditions (Cookie policy at 2500 is flaky; Privacy policy at
+  2500 has the same 3.9s and passed 10 of 10). A condition that truly
+  fails 10% of the time shows no failures in 10 repeats 35% of the time
+  (59% in 5), so the labels carry noise and measured precision is
+  probably a lower bound. Both false negatives are `My notifications`
+  under Latency (assertion time 0.0s): its failures are the background
+  slowness in the login step, which an assertion feature cannot see.
+  Observed failure rate by typical assertion-step time of passing runs
+  (delay-type, excluding always-fail conditions): 0 to 1s, 1% (2 of
+  300); 2 to 3s, 6% (2 of 35); 3.5 to 4s, 28% (38 of 138); 5s or more,
+  16% (10 of 62, steps holding several assertions). Failure probability
+  rises steadily as headroom against the 5s window shrinks.
+  Warm-up idea, updated: baseline failures were 3 of 66 first iterations
+  and 0 of 357 later ones, and 2 of 11 runs with baseline data failed in
+  their first iteration. Still suggestive only.
+  Next: reduce label noise by raising repeats where labels are
+  ambiguous (Latency 2000 to 2500 and Timing 3000 to 4000, about 20
+  repeats). The failure message text is not yet captured; it should be
+  added before that batch if data for the failure root-cause objective
+  is wanted, since the injected faults give that data known causes.
+- **4th Oct 2026**: failure text capture implemented, not yet verified
+  on a real run. Three new columns: `error_message` (the test's
+  exception message), `failed_step` (Gherkin text of the step that
+  errored) and `network_events` (up to three failed network requests,
+  for example `POST ***/api/authentication/forgotten-password -
+  net::ERR_FAILED`). Purpose: the failure root-cause objective needs
+  failure text, and the injected faults give those failures known
+  causes.
+  Security issue found and handled first: the raw `.trx` contains the
+  real REL address, which is held as a GitHub secret. GitHub masks it
+  in run logs but not in files, and this repository is public, so
+  writing failure text as it stands would have published it. The text is
+  now cleaned before it is stored: the configured host is removed
+  wherever it appears, any other URL host is masked to `***` (matching
+  GitHub's masking, with paths kept), email-like text becomes `<email>`,
+  whitespace is collapsed to one line, and the result is truncated to
+  400, 200 and 300 characters. Cleaning happens before truncation, so a
+  cut cannot leave half a host. Checked on real failing `.trx` files
+  from Latency, Retry and Load runs, with and without the host
+  configured: no trace of the address in any case. The repository was
+  searched and does not contain the address today. Residual risk: error
+  text could carry other page content that is not masked; read the new
+  columns once after the first real run before running a large batch.
+  Schema: the CSV grows to 15 columns. `analysis/migrate_schema.py`
+  replaces the one-off step-seconds migration: it adds any missing
+  columns at the end, works from either earlier version of the file, and
+  is safe to run twice (verified byte for byte on the real file). The
+  append guard refuses an un-migrated file, leaving it untouched
+  (tested), and passing rows keep empty failure fields. Existing rows
+  have no failure text and cannot be backfilled.
+  Order of work: migrate and commit the workflow together with no runs
+  in flight, verify with a small run, then the label-noise batch.
