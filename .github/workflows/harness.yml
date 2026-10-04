@@ -27,7 +27,7 @@ on:
         # is fetched, so REL sees the same request pattern as any normal
         # run — see docs/harness-design.md.
       fault_magnitude:
-        description: 'Fault magnitude (profile-specific, e.g. delay in ms)'
+        description: 'Fault magnitude (profile-specific, e.g. delay in ms). A comma-separated list such as 2500,3000,3500 runs each in turn'
         required: true
         default: '1000'
       repeat_count:
@@ -101,7 +101,7 @@ jobs:
         env:
           ENVIRON: REL
           FAULT_PROFILE: ${{ inputs.fault_profile }}
-          FAULT_MAGNITUDE: ${{ inputs.fault_magnitude }}
+          FAULT_MAGNITUDES: ${{ inputs.fault_magnitude }}
           TARGET_CATEGORY: ${{ steps.target.outputs.category }}
           RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -115,34 +115,74 @@ jobs:
           # the end so the run still shows red if any iteration failed.
           test_rc=0
 
-          for i in $(seq 1 ${{ inputs.repeat_count }}); do
-            echo "=== Iteration $i of ${{ inputs.repeat_count }} ==="
+          # fault_magnitude may be one value or a comma-separated list
+          # (for example 2500,3000,3500). Each magnitude is run in turn
+          # with the full repeat count.
+          magnitudes="${FAULT_MAGNITUDES// /}"
+          magnitudes="${magnitudes//,/ }"
 
-            dotnet test ClientPortal.PRAT.Acceptance \
-              --no-build \
-              --filter "Category=$TARGET_CATEGORY" \
-              --logger "trx;LogFileName=harness-results.trx" || test_rc=$?
+          for mag in $magnitudes; do
+            export FAULT_MAGNITUDE="$mag"
 
-            export ITERATION=$i
-            export RAN_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            for i in $(seq 1 ${{ inputs.repeat_count }}); do
+              echo "=== Magnitude $mag, iteration $i of ${{ inputs.repeat_count }} ==="
 
-            python3 - <<'PYEOF'
-          import csv, os
+              dotnet test ClientPortal.PRAT.Acceptance \
+                --no-build \
+                --filter "Category=$TARGET_CATEGORY" \
+                --logger "trx;LogFileName=harness-results.trx" || test_rc=$?
+
+              export ITERATION=$i
+              export RAN_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+              python3 - <<'PYEOF'
+          import csv, os, re
           import xml.etree.ElementTree as ET
 
           trx_path = 'ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx'
           dataset_path = 'data/harness-results.csv'
 
           if not os.path.isfile(trx_path):
-              print('No trx found — skipping append for this iteration.')
+              print('No trx found, skipping append for this iteration.')
               raise SystemExit(0)
 
           def parse_duration(d):
               h, m, s = d.split(':')
               return round(int(h) * 3600 + int(m) * 60 + float(s), 3)
 
+          GHERKIN = re.compile(r'^(Given|When|Then|And|But) ')
+          DURATION = re.compile(r'\((\d+(?:\.\d+)?)s\)')
+
+          def step_seconds(stdout):
+              """Per-step timings as 'Keyword=seconds;Keyword=seconds', in order.
+
+              Read from the test's standard output, which the trx keeps for
+              passing and failing tests alike. Skipped steps are omitted. For a
+              step that errored, the value is the time until it failed.
+              """
+              out, keyword, block = [], None, None
+              for raw in (stdout or '').splitlines():
+                  line = raw.strip()
+                  if block is None:
+                      if line.startswith('STEP START:'):
+                          block = []
+                      elif GHERKIN.match(line):
+                          keyword = line.split(' ', 1)[0]
+                  elif line.startswith('STEP END:'):
+                      found = DURATION.findall(' '.join(block))
+                      if found and keyword:
+                          out.append(f'{keyword}={found[-1]}')
+                      block = None
+                  else:
+                      block.append(line)
+              return ';'.join(out)
+
           ns = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
           root = ET.parse(trx_path).getroot()
+
+          def stdout_of(ut):
+              node = ut.find(ns + 'Output/' + ns + 'StdOut')
+              return node.text if node is not None and node.text else ''
 
           rows = [{
               'run_id': os.environ['RUN_ID'],
@@ -156,10 +196,11 @@ jobs:
               'scenario_name': ut.get('testName'),
               'outcome': ut.get('outcome'),
               'duration_seconds': parse_duration(ut.get('duration')),
+              'step_seconds': step_seconds(stdout_of(ut)),
           } for ut in root.iter(ns + 'UnitTestResult')]
 
           if not rows:
-              print('trx contained no results — skipping append for this iteration.')
+              print('trx contained no results, skipping append for this iteration.')
               raise SystemExit(0)
 
           os.makedirs('data', exist_ok=True)
@@ -180,14 +221,14 @@ jobs:
                       f'the current schema.\nExisting: {existing_header}\n'
                       f'Current:  {expected_fields}\n'
                       'The dataset needs a one-time migration before this '
-                      'can append safely — see docs/harness-design.md.'
+                      'can append safely, see docs/harness-design.md.'
                   )
 
               # Guard 2: file must end with a newline, or the next row
               # written in append mode will fuse onto the last line
               # instead of starting a fresh one.
               if content and not content.endswith(b'\n'):
-                  print('Existing file has no trailing newline — adding one before appending.')
+                  print('Existing file has no trailing newline, adding one before appending.')
                   with open(dataset_path, 'ab') as f:
                       f.write(b'\r\n')
 
@@ -197,20 +238,20 @@ jobs:
                   writer.writeheader()
               writer.writerows(rows)
 
-          print(f'Appended {len(rows)} row(s) from iteration {os.environ["ITERATION"]} to {dataset_path}')
+          print(f'Appended {len(rows)} row(s) from magnitude {os.environ["FAULT_MAGNITUDE"]}, iteration {os.environ["ITERATION"]} to {dataset_path}')
           PYEOF
 
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add data/harness-results.csv
-            if ! git diff --staged --quiet; then
-              git commit -m "Append harness run ${{ github.run_id }} iteration $i (${{ inputs.fault_profile }}, magnitude ${{ inputs.fault_magnitude }})"
-              # A failed pull or push is not fatal: the commit stays local
-              # and the next iteration's push carries it along.
-              git pull --rebase --autostash || { git rebase --abort 2>/dev/null; echo "Pull failed, will retry next iteration."; }
-              git push || echo "Push failed, will retry next iteration."
-            fi
-
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git add data/harness-results.csv
+              if ! git diff --staged --quiet; then
+                git commit -m "Append harness run ${{ github.run_id }} magnitude $mag iteration $i (${{ inputs.fault_profile }})"
+                # A failed pull or push is not fatal: the commit stays local
+                # and the next iteration's push carries it along.
+                git pull --rebase --autostash || { git rebase --abort 2>/dev/null; echo "Pull failed, will retry next iteration."; }
+                git push || echo "Push failed, will retry next iteration."
+              fi
+            done
           done
 
           # Final attempt in case the last iteration's push was rejected.

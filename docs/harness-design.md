@@ -671,3 +671,38 @@ working reliably via manual runs.
   reaching 75% on historical logs. The evidence so far supports a
   narrower claim (delay-type flakiness, high recall, moderate
   precision) together with a clear account of why.
+- **4th Oct 2026**: step-level timing capture and multi-magnitude runs
+  implemented, not yet verified on a real run. The workflow's append
+  step now parses the per-step timings that the `.trx` keeps in each
+  test's standard output (for passing and failing tests alike) and
+  stores them in a new last column, `step_seconds`, as
+  `Keyword=seconds` pairs separated by semicolons (for example
+  `Given=2.1;When=1.4;Then=3.8`). Skipped steps are omitted; for a step
+  that errored the value is the time until it failed. The parser was
+  checked against 25 real test results with no mismatches between step
+  blocks and parsed steps. Purpose: a step-level feature such as the
+  longest assertion step against the 5000ms window, which matches the
+  real failure mechanism far better than total duration (see the
+  baseline results above).
+  Schema change: the CSV gains a 12th column, so the existing append
+  guard refuses to write until the file is migrated. A one-off script,
+  `analysis/migrate_add_step_seconds.py`, adds the column with an empty
+  value for existing rows (verified byte for byte: every existing line is
+  unchanged apart from one trailing empty field; safe to run twice). The
+  migration and the new workflow must be committed together with no
+  runs in flight.
+  Also added: `fault_magnitude` now accepts a comma-separated list
+  (for example `2500,3000,3500`); each magnitude runs in turn with the
+  full repeat count, with the same per-iteration commits. This turns
+  the planned re-run of the useful band from about twenty manual
+  triggers into about seven, and removes the chance of a wrong-profile
+  run part way through a series. The commit message now names the
+  magnitude. A single value behaves exactly as before.
+  Tested with stubs and a real `.trx`: two magnitudes with failing tests
+  gave every iteration recorded, failures included, exit code 1, step
+  timings on every new row and CRLF endings preserved; an un-migrated
+  file was refused with the existing rows untouched; a single passing
+  magnitude gave exit code 0.
+  Existing rows have no step timings and cannot be backfilled, since
+  the full `.trx` files were not kept. The training table builder does
+  not use the new column yet; that follows once new data exists.
