@@ -934,3 +934,55 @@ working reliably via manual runs.
   table, checked) writes `data/training-table-minN.csv` for N above 1.
   `evaluate_baseline.py` takes an optional path to a table and counts
   the ambiguous conditions it leaves out.
+
+- **8th Oct 2026**: labelling rules compared, as fixed in the entry
+  above. Same feature sets, leave-one-scenario-out method and 0.5
+  threshold; nothing retuned. The headline results are the 8th Oct
+  figures recorded earlier (21 flaky).
+  Sensitivity rule (at least 3 failures and 3 passes; 12 flaky, 9
+  ambiguous left out):
+  All profiles (86 conditions, 12 flaky): total duration ratio, AUC
+  0.62, precision 0.18 (0.07 to 0.32), recall 0.58 (0.29 to 0.86).
+  Assertion step, AUC 0.95, precision 0.60 (0.38 to 0.81), recall 1.00
+  (1.00 to 1.00). Assertion and action steps, AUC 0.95, precision 0.57
+  (0.35 to 0.77), recall 1.00 (1.00 to 1.00).
+  Delay-type only (58 conditions, 12 flaky): total duration ratio, AUC
+  0.93, precision 0.65 (0.40 to 0.88), recall 0.92 (0.73 to 1.00).
+  Assertion step, AUC 0.92, precision 0.60 (0.38 to 0.81), recall 1.00
+  (1.00 to 1.00). Assertion and action steps, AUC 0.92, precision 0.63
+  (0.40 to 0.85), recall 1.00 (1.00 to 1.00).
+  A recall interval of 1.00 to 1.00 only means no positive was missed
+  among 12; with so few positives it is not evidence of certainty.
+  Reading: the stricter rule does not raise precision (0.57 to 0.65
+  against 0.68 to 0.72), so it is not a better result, only a different
+  label, and the headline stays the current rule as decided. Ranking is
+  better (AUC 0.95 against 0.86 for the assertion step) and nothing is
+  missed.
+  Why precision did not improve (all profiles, assertion step): the
+  headline rule gives 19 true positives, 9 false positives and 2 false
+  negatives; the stricter rule gives 12, 8 and 0. The 9 conditions
+  removed as ambiguous were mostly ones the model had flagged (7 of 9),
+  so removing them loses true positives and almost no false positives.
+  The fragile labels were therefore not what held precision down; the
+  model is in fact finding conditions with a rare failure.
+  Where the 9 false positives come from: 4 are the invalid-login
+  scenario under Timing (2000, 3000, 3500, 4000; 30 repeats and no
+  failures at the last three), 3 are post-login navigation scenarios
+  under Latency 2000 (25 repeats, no failures), and 2 are the valid
+  login scenario with 5 repeats. Their median assertion step time is
+  3.9s, the same as the flaky conditions (3.9s), so this feature cannot
+  separate them.
+  Correction to the 4th Oct reading: that entry said measured precision
+  is probably a lower bound because short repeat counts hide failures.
+  That holds for the 3 false positives with 5 repeats, but not for the
+  other 6, which have 25 or 30 repeats and still show none. Precision of
+  about 0.7 at about 0.9 recall is what assertion step headroom alone
+  supports on this data; more repeats will not lift it much.
+  Next, to be recorded before it is run: a feature for how variable the
+  assertion step time is across passing runs (passing runs only, so no
+  leakage), to test whether stable headroom separates the false
+  positives from flaky conditions. Whether the scenario type matters
+  (the invalid-login scenario is not affected by a delayed success
+  response in the same way) is a modelling question, not a labelling
+  one; a scenario-type feature would need care, since leave-one-scenario
+  out holds out whole scenarios.
