@@ -136,7 +136,7 @@ jobs:
               export RAN_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
               python3 - <<'PYEOF'
-          import csv, os, re
+          import csv, json, os, re
           import xml.etree.ElementTree as ET
 
           trx_path = 'ClientPortal.PRAT.Acceptance/TestResults/harness-results.trx'
@@ -177,11 +177,73 @@ jobs:
                       block.append(line)
               return ';'.join(out)
 
+          def failed_step_of(stdout):
+              """Gherkin text of the step that errored, or an empty string."""
+              current, block = '', None
+              for raw in (stdout or '').splitlines():
+                  line = raw.strip()
+                  if block is None:
+                      if line.startswith('STEP START:'):
+                          block = []
+                      elif GHERKIN.match(line):
+                          current = line
+                  elif line.startswith('STEP END:'):
+                      if any(b.startswith('-> error:') for b in block):
+                          return current
+                      block = None
+                  else:
+                      block.append(line)
+              return ''
+
+          def network_events_of(stdout):
+              """Up to three failed network requests, e.g. 'POST ***/api/x - net::ERR_FAILED'."""
+              events = [
+                  l.strip().replace('[RequestFailed] ', '')
+                  for l in (stdout or '').splitlines()
+                  if l.strip().startswith('[RequestFailed]')
+              ]
+              return ' | '.join(events[:3])
+
+          # The trx holds the real REL address, which is a secret: GitHub masks it
+          # in logs but not in files. This repository is public, so failure text
+          # is cleaned before it is stored. Two layers: the configured host is
+          # removed wherever it appears, and any other URL host is masked too.
+          def known_hosts():
+              hosts = set()
+              try:
+                  with open('ClientPortal.PRAT.Acceptance/appsettings.local.json') as f:
+                      cfg = json.load(f)
+                  for env in cfg.get('Environments', {}).values():
+                      url = env.get('BaseUrl', '')
+                      if url:
+                          hosts.add(url.rstrip('/'))
+                          hosts.add(re.sub(r'^https?://', '', url).split('/')[0])
+              except Exception:
+                  pass
+              return sorted((h for h in hosts if h), key=len, reverse=True)
+
+          KNOWN_HOSTS = known_hosts()
+          HOST_RE = re.compile(r'https?://[^/\s\'"<>]+')
+          EMAIL_RE = re.compile(r'[\w.+-]+@[\w-]+(?:\.[\w-]+)+')
+
+          def clean(text, limit):
+              """One line, secrets and addresses masked, then truncated."""
+              text = re.sub(r'\s+', ' ', text or '').strip()
+              for host in KNOWN_HOSTS:
+                  text = text.replace(host, '***')
+              text = HOST_RE.sub('***', text)
+              text = EMAIL_RE.sub('<email>', text)
+              return text[:limit]
+
           ns = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
           root = ET.parse(trx_path).getroot()
 
           def stdout_of(ut):
               node = ut.find(ns + 'Output/' + ns + 'StdOut')
+              return node.text if node is not None and node.text else ''
+
+          def message_of(ut):
+              node = ut.find(ns + 'Output/' + ns + 'ErrorInfo/' + ns + 'Message')
               return node.text if node is not None and node.text else ''
 
           rows = [{
@@ -197,6 +259,9 @@ jobs:
               'outcome': ut.get('outcome'),
               'duration_seconds': parse_duration(ut.get('duration')),
               'step_seconds': step_seconds(stdout_of(ut)),
+              'error_message': clean(message_of(ut), 400),
+              'failed_step': clean(failed_step_of(stdout_of(ut)), 200),
+              'network_events': clean(network_events_of(stdout_of(ut)), 300),
           } for ut in root.iter(ns + 'UnitTestResult')]
 
           if not rows:
