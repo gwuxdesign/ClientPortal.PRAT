@@ -986,3 +986,33 @@ working reliably via manual runs.
   response in the same way) is a modelling question, not a labelling
   one; a scenario-type feature would need care, since leave-one-scenario
   out holds out whole scenarios.
+
+- **8th Oct 2026**: assertion step spread feature fixed before it was
+  run. Question: do the false positives (conditions with the same median
+  assertion time as flaky ones but no failures, see the entry above)
+  differ in how unstable that time is? Feature: `feat_then_std_s`, the
+  standard deviation of the longest assertion step across the
+  condition's passing runs. It uses passing runs only, so it follows the
+  leakage rule. It needs two passing runs; all 95 modelling conditions
+  have a value, so none are dropped (coverage was checked, no model
+  result was looked at).
+  Plan, fixed now: one new feature set, assertion step median, maximum
+  and spread, compared against the plain assertion step on the same
+  conditions. Headline labelling rule, same leave-one-scenario-out
+  method, same 0.5 threshold, all profiles and delay-type faults
+  reported. One run: no other spread statistic (range, interquartile
+  range, coefficient of variation) will be tried afterwards, so the
+  choice cannot be tuned to the result.
+  Success criterion: on all profiles, the spread feature set counts as
+  an improvement only if its precision is at least 0.75, or at least
+  0.05 higher than the plain assertion step on the same conditions,
+  with recall not below 0.85. Anything else is reported as no
+  improvement, as a negative result.
+  Risks noted in advance: a flaky condition has fewer passing runs, so
+  its spread is estimated from fewer values and is noisier. The feature
+  does not use the count itself, but that difference could make it
+  look more useful than it is. Conditions from the same scenario also
+  share structure, which leave-one-scenario-out is designed to expose.
+  Implementation: `feat_then_std_s` added to `build_training_table.py`
+  (existing columns unchanged, checked); `evaluate_baseline.py` reports
+  the comparison on the conditions that have the feature.

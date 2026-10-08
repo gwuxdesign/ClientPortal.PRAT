@@ -38,6 +38,12 @@ FEATURE_SETS = {
     ],
 }
 
+# Pre-registered 8th Oct (docs/harness-design.md): one added feature, the
+# spread of the assertion step across passing runs. Judged on the
+# conditions that have it, against the plain assertion step on the SAME
+# conditions, so the comparison is like for like.
+SPREAD_SET = ("assertion step + spread", ["feat_then_median_s", "feat_then_max_s", "feat_then_std_s"])
+
 
 def predict(d, cols):
     X, y, groups = d[cols].values, d.is_flaky.values, d.scenario.values
@@ -90,4 +96,11 @@ if __name__ == "__main__":
         print(f"{name}: {len(d)} conditions, {int(d.is_flaky.sum())} flaky{note}")
         for label, cols in FEATURE_SETS.items():
             report(d, label, cols)
+        if "feat_then_std_s" in d.columns:
+            common = d.dropna(subset=["feat_then_std_s"])
+            print(f"  Spread comparison on the {len(common)} conditions that have it "
+                  f"({len(d) - len(common)} dropped for fewer than 2 passing runs, "
+                  f"{int(common.is_flaky.sum())} flaky):")
+            report(common, "assertion step", FEATURE_SETS["assertion step"])
+            report(common, SPREAD_SET[0], SPREAD_SET[1])
         print()

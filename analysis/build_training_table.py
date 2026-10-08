@@ -39,6 +39,10 @@ Features (all from passing runs of the condition):
   feat_action_median_s, feat_action_max_s
       the longest non-assertion step of each run (actions have a 10 s
       timeout)
+  feat_then_std_s
+      standard deviation of the longest assertion step across the
+      condition's passing runs: how unstable the headroom is. Needs at
+      least 2 passing runs; empty otherwise.
 
 Usage (from the repo root):  python analysis/build_training_table.py [--all-rows] [--min-minority N]
 """
@@ -119,6 +123,7 @@ def build(df: pd.DataFrame, steps_only: bool = True, min_minority: int = 1) -> p
                 "feat_then_max_s": p.then_max.max() if ok else None,
                 "feat_action_median_s": p.action_max.median() if ok else None,
                 "feat_action_max_s": p.action_max.max() if ok else None,
+                "feat_then_std_s": p.then_max.std() if len(p) >= 2 else None,
             }
         )
     return pd.DataFrame(rows)
