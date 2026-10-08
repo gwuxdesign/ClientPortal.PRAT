@@ -13,8 +13,12 @@ OPTIMISTIC: the threshold is tuned on the same predictions, so treat it as
 an upper bound on what the features could achieve.
 
 Usage (from the repo root, after build_training_table.py):
-    python analysis/evaluate_baseline.py
+    python analysis/evaluate_baseline.py [path to a training table]
+The default table is data/training-table.csv. For the stricter labelling
+rule build with --min-minority 3 and pass data/training-table-min3.csv.
+Conditions labelled "ambiguous" are excluded from modelling and counted.
 """
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -25,7 +29,7 @@ from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-TABLE = Path("data/training-table.csv")
+TABLE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/training-table.csv")
 FEATURE_SETS = {
     "total duration ratio": ["feat_median_pass_ratio", "feat_max_pass_ratio"],
     "assertion step": ["feat_then_median_s", "feat_then_max_s"],
@@ -73,6 +77,8 @@ def report(d, label, cols):
 
 if __name__ == "__main__":
     t = pd.read_csv(TABLE)
+    print(f"Table: {TABLE} | " + ", ".join(f"{k} {v}" for k, v in t.label.value_counts().items()))
+    print("(ambiguous conditions are excluded from modelling)\n" if (t.label == "ambiguous").any() else "")
     modelling = t[t.label.isin(["always_pass", "flaky"])]  # always_fail has no passing runs
     for name, d in (
         ("All profiles", modelling),

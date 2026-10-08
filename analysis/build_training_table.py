@@ -7,6 +7,14 @@ Label: flaky = the repeats gave BOTH passes and failures. Always-pass and
 always-fail conditions are not flaky (an always-fail condition is
 deterministically broken by the fault).
 
+--min-minority N (default 1, the rule above) makes the label stricter: a
+mixed condition counts as flaky only with at least N failures AND at least
+N passes. A mixed condition with fewer is labelled "ambiguous" and is left
+out of modelling. It is deliberately not counted as a negative (that would
+punish a model for flagging a genuine rare failure) and not as a positive.
+With N above 1 the table is written to data/training-table-minN.csv, so
+the default table is never overwritten.
+
 Rows: by default only rows that carry per-step timings (step_seconds) are
 used, so every feature set is computed on exactly the same conditions.
 Older rows have no step timings. With --all-rows they are included: the
@@ -32,9 +40,9 @@ Features (all from passing runs of the condition):
       the longest non-assertion step of each run (actions have a 10 s
       timeout)
 
-Usage (from the repo root):  python analysis/build_training_table.py
+Usage (from the repo root):  python analysis/build_training_table.py [--all-rows] [--min-minority N]
 """
-import sys
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -57,7 +65,7 @@ def longest(steps, assertion):
     return max(secs) if secs else 0.0
 
 
-def build(df: pd.DataFrame, steps_only: bool = True) -> pd.DataFrame:
+def build(df: pd.DataFrame, steps_only: bool = True, min_minority: int = 1) -> pd.DataFrame:
     df = df.copy()
     if steps_only:
         df = df[df.step_seconds.notna() & (df.step_seconds != "")]
@@ -86,6 +94,14 @@ def build(df: pd.DataFrame, steps_only: bool = True) -> pd.DataFrame:
         failures = repeats - len(p)
         base = baseline.get(scenario)
         ok = len(p) > 0
+        if failures == repeats:
+            label = "always_fail"
+        elif failures == 0:
+            label = "always_pass"
+        elif min(failures, repeats - failures) >= min_minority:
+            label = "flaky"
+        else:
+            label = "ambiguous"
         rows.append(
             {
                 # identifiers and label metadata (NOT features)
@@ -94,10 +110,8 @@ def build(df: pd.DataFrame, steps_only: bool = True) -> pd.DataFrame:
                 "magnitude": int(magnitude),
                 "repeats": repeats,
                 "failures": failures,
-                "label": "flaky" if 0 < failures < repeats
-                else "always_fail" if failures == repeats
-                else "always_pass",
-                "is_flaky": int(0 < failures < repeats),
+                "label": label,
+                "is_flaky": int(label == "flaky"),
                 # features: passing runs only
                 "feat_median_pass_ratio": p.duration_seconds.median() / base if ok and base else None,
                 "feat_max_pass_ratio": p.duration_seconds.max() / base if ok and base else None,
@@ -111,7 +125,12 @@ def build(df: pd.DataFrame, steps_only: bool = True) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    table = build(pd.read_csv(SRC), steps_only="--all-rows" not in sys.argv)
-    table.to_csv(OUT, index=False)
-    print(f"wrote {OUT}: {len(table)} conditions")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--all-rows", action="store_true")
+    ap.add_argument("--min-minority", type=int, default=1)
+    args = ap.parse_args()
+    table = build(pd.read_csv(SRC), steps_only=not args.all_rows, min_minority=args.min_minority)
+    out = OUT if args.min_minority == 1 else OUT.with_name(f"training-table-min{args.min_minority}.csv")
+    table.to_csv(out, index=False)
+    print(f"wrote {out}: {len(table)} conditions")
     print(table.label.value_counts().to_string())

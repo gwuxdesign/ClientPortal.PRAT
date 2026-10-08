@@ -177,7 +177,8 @@ working reliably via manual runs.
   heavily on the definition. Options: keep the current rule, or require
   a minimum failure count (for example 3), reporting both. To be
   decided before looking at which scores better, so the choice cannot
-  be tuned to the result.
+  be tuned to the result. Decided 8th Oct, before any comparison: see
+  the build log.
 - ~~Timing for the Concurrency/Load heads-up to REL's security/fraud
   monitoring owner?~~ Decided 18th Sept not to pursue: no clear owner
   given the organisational changes. Concurrency remains unrun against
@@ -907,3 +908,29 @@ working reliably via manual runs.
   one to one onto profiles, so a high score would be unsurprising; it
   needs more variety (Load at higher magnitudes, further Retry
   conditions) and the same held-out-scenario method.
+
+- **8th Oct 2026**: labelling rule fixed before any comparison was run.
+  Headline rule: a condition is flaky if its repeats gave both passes
+  and failures (minimum 5 repeats). This is the rule behind every
+  figure recorded so far, so results stay comparable. Sensitivity rule:
+  flaky only if there are at least 3 failures and at least 3 passes. A
+  mixed condition with fewer is labelled "ambiguous" and left out of
+  modelling: it is not counted as a negative, which would penalise a
+  model for flagging a genuine rare failure, and not as a positive. Both
+  rules use the same feature sets, the same leave-one-scenario-out
+  method, the same 0.5 threshold and no retuning. The headline stays the
+  current rule whatever the sensitivity result says, unless the
+  supervisor advises otherwise; the stricter result is reported beside
+  it, not instead of it.
+  Label counts only (no model results had been looked at): the
+  headline rule gives 74 always pass, 21 flaky, 6 always fail. The
+  sensitivity rule gives 74 always pass, 12 flaky, 9 ambiguous, 6 always
+  fail. Nine of the 21 flaky conditions therefore depend on the
+  definition, which leaves only 12 positives under the stricter rule and
+  makes its intervals wider; that is a cost of the stricter rule and
+  should be read as such.
+  Implementation: `build_training_table.py --min-minority N` (default 1,
+  the headline rule; output byte for byte identical to the committed
+  table, checked) writes `data/training-table-minN.csv` for N above 1.
+  `evaluate_baseline.py` takes an optional path to a table and counts
+  the ambiguous conditions it leaves out.
