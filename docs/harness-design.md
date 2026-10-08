@@ -1016,3 +1016,37 @@ working reliably via manual runs.
   Implementation: `feat_then_std_s` added to `build_training_table.py`
   (existing columns unchanged, checked); `evaluate_baseline.py` reports
   the comparison on the conditions that have the feature.
+
+- **8th Oct 2026**: assertion step spread result: no improvement, by the
+  criterion fixed in advance. Headline labelling rule, same method and
+  0.5 threshold; every condition had the feature, so none were dropped.
+  All profiles (95 conditions, 21 flaky): assertion step, AUC 0.86,
+  precision 0.68 (0.50 to 0.85), recall 0.90 (0.76 to 1.00). With
+  spread, AUC 0.86, precision 0.69 (0.50 to 0.87), recall 0.86 (0.70 to
+  1.00).
+  Delay-type only (67 conditions, 21 flaky): assertion step, AUC 0.83,
+  precision 0.70 (0.52 to 0.87), recall 0.90 (0.76 to 1.00). With
+  spread, AUC 0.84, precision 0.71 (0.52 to 0.88), recall 0.81 (0.62 to
+  0.96).
+  Criterion: precision of at least 0.75, or at least 0.05 above the
+  plain assertion step, with recall not below 0.85. Precision rose by
+  0.01 on all profiles and recall fell, so the criterion is not met. The
+  best balanced figure (optimistic) also fell, from 0.77 to 0.73 on all
+  profiles and 0.77 to 0.72 on delay-type faults.
+  Reading: how unstable the assertion time is does not separate the
+  false positives from the flaky conditions. Together with the labelling
+  comparison above, a timing signal taken from passing runs supports
+  about 0.7 precision at about 0.9 recall on this data. Neither
+  stricter labels nor a spread feature moved it, so the 75% precision
+  target is not demonstrated, and the limit looks to lie in what these
+  features can see, not in label noise.
+  Caution on repeated looks: this is the fourth comparison made on the
+  same 95 conditions (feature sets, step features, labelling rule,
+  spread). Further feature searching on them risks fitting those
+  particular conditions. Any further feature work should be judged
+  on conditions not used to design it.
+  Next: fix the final evaluation before running it, and collect a fresh
+  batch of conditions at magnitudes not yet run (for example Latency and
+  Timing values between those already covered), kept aside and used only
+  for the final test. The same batch widens the failure variety for the
+  root-cause classifier.
