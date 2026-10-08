@@ -150,8 +150,11 @@ working reliably via manual runs.
   passes at 0 and fails at 1; Load passes at 500 and fails at 2000.
   This is now actively needed rather than optional: the classifier
   needs examples across the range, especially near each failure
-  threshold, not only at the extremes. Sweep in progress (see build
-  log, 1st Oct).
+  threshold, not only at the extremes. Sweep done (see build log, 1st,
+  4th and 8th Oct). Boundaries as of 8th Oct: Latency starts failing
+  at 2500 (about 7% of runs; 1% at 2000); Timing starts failing at
+  3000 (3 of 20 repeats of the valid login scenario), is the same at
+  3500, and fails every time at 4000.
 - Why did Load at magnitude 750 with 5 repeats run for over two hours
   before being cancelled? Undiagnosed, as nothing survived to inspect.
   Not reproduced on 3rd Oct: 750 at 1 repeat, and 1000 and 1250 at 5
@@ -164,10 +167,17 @@ working reliably via manual runs.
   warm-up effect)? Suggestive but unproven, see the 3rd Oct entry on
   the verified loop fix. Settle with more data from the planned sweep
   before deciding whether to flag, filter or warm up.
-- Would a step-level timing feature lift classifier precision? The
-  `.trx` holds per-step timings for passing and failing tests, but only
-  total duration is kept. Needs a script change, a CSV schema migration
-  and a re-run of the useful magnitude band (see build log, 4th Oct).
+- ~~Would a step-level timing feature lift classifier precision?~~
+  Answered 4th and 8th Oct: it helps a great deal across profiles
+  (precision 0.68 against 0.21 for total duration) but only matches
+  total duration within delay-type faults. See the build log.
+- What counts as a flaky condition? Currently any mix of passes and
+  failures over at least 5 repeats. 10 of the 22 mixed conditions have
+  only one or two outcomes in the minority, so those labels depend
+  heavily on the definition. Options: keep the current rule, or require
+  a minimum failure count (for example 3), reporting both. To be
+  decided before looking at which scores better, so the choice cannot
+  be tuned to the result.
 - ~~Timing for the Concurrency/Load heads-up to REL's security/fraud
   monitoring owner?~~ Decided 18th Sept not to pursue: no clear owner
   given the organisational changes. Concurrency remains unrun against
@@ -818,3 +828,82 @@ working reliably via manual runs.
   have no failure text and cannot be backfilled.
   Order of work: migrate and commit the workflow together with no runs
   in flight, verify with a small run, then the label-noise batch.
+
+- **8th Oct 2026**: failure text capture verified on real runs. A Retry
+  run at magnitude 1 (run 37755584212, 2 iterations, 8 rows, 3
+  failures) was read first. The CSV had 15 columns, the new fields were
+  filled only on failed rows and every failed row had a message, a
+  failed step and, where one existed, a network event. Three distinct
+  messages appeared: the reset confirmation assertion timing out at
+  5000ms, and the "Forgotten password?" click timing out at 10000ms,
+  once with the link visible and stable but the click blocked by
+  another element. That second form is a different failure mode from
+  the aborted request. The one network event was the POST to the
+  forgotten-password endpoint with `net::ERR_FAILED` and the host
+  masked. Leak scan of the whole file: the REL address appears nowhere,
+  no URL with a real host, no email-like text, no passed row carrying
+  failure text, and the longest field is exactly at its cap (400
+  characters), so nothing overruns. The same scan was repeated after
+  each of the two batches below with the same result. Limit: the scan
+  only covers failures seen so far, so repeat it after any batch that
+  produces a new kind of failure (Load at higher magnitudes, for
+  example).
+- **8th Oct 2026**: label-noise batches run and the baseline
+  re-evaluated.
+  Latency at 2000 and 2500, 20 repeats each (run 37757361655, 320
+  rows): 2000 had 1 failure in 160 rows and 2500 had 11 in 160. With the
+  earlier runs, 2000 has 2 failures in 200 rows and 2500 has 16 in 240.
+  Every failure carries its text. All share one signature: the
+  navigation request is aborted (`net::ERR_ABORTED`), the page stays on
+  the start URL and the 5000ms URL assertion expires. The six
+  post-login navigation scenarios fail (1 to 4 times each at 2500);
+  `NavigationLoginPage` and `NavigationPasswordReset` did not fail at
+  either magnitude.
+  Timing at 3000, 3500 and 4000, 20 repeats each (run 37763385292, 300
+  rows): 3 failures in 100 rows at 3000, 3 in 100 at 3500 and 20 in 100
+  at 4000. All 26 failures are the valid login scenario
+  (`LoginFunctionalityWithValidation`, 3 of 20 repeats, 3 of 20 and 20
+  of 20), failing at "the login attempt was successful" with the
+  success element not found and no network event. That differs from
+  Latency, where the request is aborted, and gives the root-cause
+  classifier a signal beyond the profile name.
+  Training table rebuilt: still 101 conditions, because the batches
+  added repeats to existing conditions rather than new ones, now 74
+  always pass, 21 flaky (18 on 4th Oct) and 6 always fail. Among the
+  105 step-timed conditions, repeats range from 2 to 30 (median 7) and
+  22 have mixed outcomes; 21 meet the 5-repeat minimum and one (Retry
+  at 1, `CancelPasswordReset`, 1 failure in 2 repeats) does not.
+  Same method as 4th Oct (leave-one-scenario-out, threshold 0.5,
+  bootstrap 95% intervals):
+  All profiles (95 conditions, 21 flaky): total duration ratio, AUC
+  0.48, precision 0.21 (0.10 to 0.33), recall 0.48 (0.26 to 0.70).
+  Assertion step, AUC 0.86, precision 0.68 (0.50 to 0.85), recall 0.90
+  (0.76 to 1.00). Assertion and action steps, AUC 0.88, precision 0.68
+  (0.50 to 0.85), recall 0.90 (0.76 to 1.00).
+  Delay-type only (67 conditions, 21 flaky): total duration ratio, AUC
+  0.87, precision 0.72 (0.53 to 0.89), recall 0.86 (0.68 to 1.00).
+  Assertion step, AUC 0.83, precision 0.70 (0.52 to 0.87), recall 0.90
+  (0.76 to 1.00). Assertion and action steps, AUC 0.83, precision 0.68
+  (0.48 to 0.86), recall 0.81 (0.62 to 0.96).
+  The best balanced precision and recall over all thresholds
+  (optimistic, as the threshold is tuned on the same predictions) is
+  0.73 to 0.77 for the step feature sets; it is not quoted as a result.
+  Reading: recall meets the 75% ToR target and so does the lower end of
+  its interval. Precision point estimates are 0.68 to 0.72, below the
+  target, but every interval includes 0.75, so the target is neither
+  demonstrated nor excluded. Precision is about 0.1 higher than on 4th
+  Oct (0.57 to 0.60), consistent with label noise having been held
+  down by more repeats, although the condition set is not identical, so
+  this is not a controlled comparison. The step feature still helps
+  across profiles and still only matches total duration within
+  delay-type faults; action steps add nothing.
+  Remaining weakness: 10 of the 22 mixed conditions have only one or
+  two outcomes in the minority (for example Latency at 2500, `My
+  notifications`, 1 in 30; Latency at 2000, `Cookie policy`, 1 in 25).
+  These labels depend on the definition of flaky as much as on noise,
+  which is why the labelling rule is now an open question above.
+  Next: settle the labelling rule, then start the failure root-cause
+  classifier. Its first limit is that the current causes map almost
+  one to one onto profiles, so a high score would be unsurprising; it
+  needs more variety (Load at higher magnitudes, further Retry
+  conditions) and the same held-out-scenario method.
