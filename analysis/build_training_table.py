@@ -84,6 +84,14 @@ def build(df: pd.DataFrame, steps_only: bool = True, min_minority: int = 1, held
     if steps_only:
         df = df[df.step_seconds.notna() & (df.step_seconds != "")]
     df["passed"] = df["outcome"].eq("Passed")
+    # Per-scenario no-fault baseline: median duration of passing runs at magnitude 0.
+    # Computed BEFORE the held-out split: magnitude 0 is never held out, and
+    # the held-out table still needs the baseline to express durations as ratios.
+    baseline = (
+        df[(df.fault_magnitude == 0) & df.passed]
+        .groupby("scenario_name")
+        .duration_seconds.median()
+    )
     in_heldout = pd.Series(
         [m in HELD_OUT.get(pf, []) for pf, m in zip(df.fault_profile, df.fault_magnitude)],
         index=df.index,
@@ -94,13 +102,6 @@ def build(df: pd.DataFrame, steps_only: bool = True, min_minority: int = 1, held
     parsed = df.step_seconds.map(parse_steps).where(has_steps)
     df["then_max"] = parsed.map(lambda s: longest(s, True) if isinstance(s, list) else np.nan)
     df["action_max"] = parsed.map(lambda s: longest(s, False) if isinstance(s, list) else np.nan)
-
-    # Per-scenario no-fault baseline: median duration of passing runs at magnitude 0.
-    baseline = (
-        df[(df.fault_magnitude == 0) & df.passed]
-        .groupby("scenario_name")
-        .duration_seconds.median()
-    )
 
     rows = []
     short = 0
