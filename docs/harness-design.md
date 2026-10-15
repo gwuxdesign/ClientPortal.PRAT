@@ -1050,3 +1050,44 @@ working reliably via manual runs.
   Timing values between those already covered), kept aside and used only
   for the final test. The same batch widens the failure variety for the
   root-cause classifier.
+
+- **15th Oct 2026**: held-out final test fixed before any of it was
+  run. Reason: the same 95 conditions have now been used for four
+  comparisons, so any figure from them is a development figure. A final
+  figure needs conditions that played no part in design.
+  Held-out conditions (every scenario at each): Timing at 3250 and
+  3750; Latency at 2250, 2750, 3250 and 3750. These sit between
+  magnitudes already run, where failure rates change fastest, and none
+  has any data today (checked: zero existing rows). Planned at 20
+  repeats each: about 42 conditions.
+  Rules, fixed now:
+  1. Rows at these magnitudes go into `data/harness-results.csv` like
+     any others, but `build_training_table.py` excludes them from the
+     development table by default (`HELD_OUT`), so nothing built for
+     design or tuning can include them. `--heldout-only` builds the
+     test table (`data/heldout-table.csv`).
+  2. The held-out table is not built, opened or summarised until the
+     final model has been frozen. Freezing means the model type, its
+     features, the labelling rule and the threshold are committed, and
+     the commit is recorded in this document. The held-out result is
+     computed once, after that.
+  3. Reported with the headline labelling rule, with the stricter rule
+     beside it, and with 95% bootstrap intervals, whatever the result.
+     A result below the 75% target is reported as such.
+  4. A run may be repeated only for a technical failure of the run
+     itself (a runner crash, a hang, a missing upload), never because of
+     what its results showed. A held-out condition counts only with at
+     least 5 repeats; the number that fall short is reported.
+  Limitation, stated in advance: these are the same scenarios at new
+  magnitudes, and the development data holds neighbouring magnitudes of
+  them. The test therefore shows whether the model carries across
+  magnitude, not across new scenarios, and may read somewhat better than
+  it would on genuinely new scenarios. Leave-one-scenario-out on the
+  development data remains the test for new scenarios.
+  Not held out: Retry at 2 and 3, and Load at higher magnitudes. These
+  add failure variety for the root-cause classifier and are ordinary
+  development data.
+  Implementation: `HELD_OUT`, the default exclusion and `--heldout-only`
+  in `build_training_table.py`. Checked: the development table is
+  unchanged today (101 conditions), and rows copied to a held-out
+  magnitude appear only in the held-out table.

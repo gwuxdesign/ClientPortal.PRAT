@@ -44,7 +44,16 @@ Features (all from passing runs of the condition):
       condition's passing runs: how unstable the headroom is. Needs at
       least 2 passing runs; empty otherwise.
 
-Usage (from the repo root):  python analysis/build_training_table.py [--all-rows] [--min-minority N]
+Held-out conditions: HELD_OUT lists (profile, magnitude) pairs kept aside
+for the final test, fixed in docs/harness-design.md BEFORE they were run.
+By default they are EXCLUDED from the table, so nothing built here for
+design or tuning can include them. --heldout-only builds a table of only
+those conditions (data/heldout-table.csv). Do not use --heldout-only
+until the final model and evaluation have been frozen and committed; the
+design doc says what freezing means.
+
+Usage (from the repo root):
+    python analysis/build_training_table.py [--all-rows] [--min-minority N] [--heldout-only]
 """
 import argparse
 from pathlib import Path
@@ -53,6 +62,7 @@ import numpy as np
 import pandas as pd
 
 MIN_REPEATS = 5
+HELD_OUT = {"Timing": [3250, 3750], "Latency": [2250, 2750, 3250, 3750]}
 SRC = Path("data/harness-results.csv")
 OUT = Path("data/training-table.csv")
 
@@ -69,11 +79,16 @@ def longest(steps, assertion):
     return max(secs) if secs else 0.0
 
 
-def build(df: pd.DataFrame, steps_only: bool = True, min_minority: int = 1) -> pd.DataFrame:
+def build(df: pd.DataFrame, steps_only: bool = True, min_minority: int = 1, heldout_only: bool = False) -> pd.DataFrame:
     df = df.copy()
     if steps_only:
         df = df[df.step_seconds.notna() & (df.step_seconds != "")]
     df["passed"] = df["outcome"].eq("Passed")
+    in_heldout = pd.Series(
+        [m in HELD_OUT.get(pf, []) for pf, m in zip(df.fault_profile, df.fault_magnitude)],
+        index=df.index,
+    )
+    df = df[in_heldout] if heldout_only else df[~in_heldout]
     # A row without step timings has UNKNOWN step features (NaN), not zero.
     has_steps = df.step_seconds.notna() & (df.step_seconds != "")
     parsed = df.step_seconds.map(parse_steps).where(has_steps)
@@ -133,9 +148,16 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--all-rows", action="store_true")
     ap.add_argument("--min-minority", type=int, default=1)
+    ap.add_argument("--heldout-only", action="store_true")
     args = ap.parse_args()
-    table = build(pd.read_csv(SRC), steps_only=not args.all_rows, min_minority=args.min_minority)
-    out = OUT if args.min_minority == 1 else OUT.with_name(f"training-table-min{args.min_minority}.csv")
+    table = build(
+        pd.read_csv(SRC), steps_only=not args.all_rows, min_minority=args.min_minority,
+        heldout_only=args.heldout_only,
+    )
+    stem = "heldout-table" if args.heldout_only else "training-table"
+    out = OUT.with_name(f"{stem}.csv" if args.min_minority == 1 else f"{stem}-min{args.min_minority}.csv")
+    if table.empty:
+        raise SystemExit(f"No conditions to write to {out} (none found with at least {MIN_REPEATS} repeats).")
     table.to_csv(out, index=False)
     print(f"wrote {out}: {len(table)} conditions")
     print(table.label.value_counts().to_string())
