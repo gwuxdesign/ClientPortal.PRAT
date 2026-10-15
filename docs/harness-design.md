@@ -1129,3 +1129,68 @@ working reliably via manual runs.
   and the evaluation run, once. Anything changed after the tag (model,
   features, labelling rule, threshold) means the held-out data is no
   longer a final test, and would be reported as such.
+
+- **15th Oct 2026**: held-out final test result, from the frozen model
+  (tag `final-model-freeze`), run once per labelling rule as
+  pre-registered. The held-out set has 42 conditions (0 left out for
+  fewer than 5 repeats): 20 flaky, 17 always pass and 5 always fail; the
+  5 always fail have no passing runs and are not modelled. The model was
+  trained on the 95 development conditions and applied to the 37
+  modelled held-out conditions.
+  Headline rule, assertion step (the frozen model), threshold 0.5:
+  All held-out (37 conditions, 20 flaky): true positives 17, false
+  positives 2, false negatives 3, true negatives 15. Precision 0.89
+  (95% interval 0.73 to 1.00), recall 0.85 (0.68 to 1.00).
+  Latency (27 conditions, 14 flaky): 13, 2, 1, 11. Precision 0.87 (0.69
+  to 1.00), recall 0.93 (0.77 to 1.00).
+  Timing (10 conditions, 6 flaky): 4, 0, 2, 4. Precision 1.00 (1.00 to
+  1.00), recall 0.67 (0.25 to 1.00).
+  Stricter rule beside it (at least 3 failures and 3 passes; 27
+  modelled conditions, 10 flaky, 10 ambiguous left out): true positives
+  10, false positives 2, false negatives 0, true negatives 15.
+  Precision 0.83 (0.58 to 1.00), recall 1.00 (1.00 to 1.00, which only
+  means none of 10 was missed). Latency precision 0.78 (0.50 to 1.00),
+  Timing precision 1.00 on 3 flaky conditions.
+  Context only, total duration ratio, headline rule: precision 0.92
+  (0.73 to 1.00), recall 0.60 (0.38 to 0.81); stricter rule precision
+  0.89 (0.62 to 1.00), recall 0.80 (0.50 to 1.00). The frozen model
+  finds more of the flaky conditions (recall 0.85 against 0.60).
+  Against the criterion fixed in advance: both point estimates are at
+  least 0.75 (0.89 and 0.85), so the 75% target is met on the held-out
+  test. The interval lower bounds are 0.73 and 0.68, so it is not met
+  firmly, and the intervals are wide because there are only 37
+  conditions. Timing alone has 10 conditions and its recall interval
+  runs from 0.25 to 1.00.
+  Post hoc, not pre-registered, and needed to read the precision
+  correctly: the held-out set is 54% flaky (20 of 37) against 22% in
+  development (21 of 95), because it sits in the transition zone where
+  most conditions fail sometimes. Precision rises with how common the
+  positive class is, so it is not comparable between the two sets. The
+  rates are comparable: true positive rate 0.85 against 0.90 in
+  development, false positive rate 0.12 against 0.12. At the development
+  prevalence of 22%, those rates imply a precision of about 0.67, which
+  matches the 0.68 found in development. The model therefore behaves the
+  same on both sets; the higher held-out precision comes from a more
+  flaky-heavy set of conditions. Where flaky conditions are rarer, as
+  across the full range of magnitudes, precision should be expected to
+  be nearer 0.7 than 0.9.
+  Limitations, as stated before the test: the same scenarios at new
+  magnitudes, with neighbouring magnitudes in the training data, so this
+  shows carry-over across magnitude and not across new scenarios; delay
+  faults only; 37 conditions.
+  Disclosure: the first run of the evaluation script stopped on the
+  context-only model. In held-out mode `build_training_table.py`
+  computed each scenario's no-fault baseline after dropping the
+  non-held-out rows, so the duration ratio features were blank. The
+  frozen model does not use them and its results were already printed;
+  the fix (compute the baseline before the held-out split, as in
+  development) was committed after the tag as a separate change. The
+  development tables are unchanged by it, and the frozen model's results
+  were identical when the evaluation was re-run. The stricter table
+  `data/training-table-min3.csv` was regenerated to add the spread
+  column it predates, with no other change. Nothing about the frozen
+  model, its features, the labelling rule or the threshold changed after
+  the tag.
+  Not looked at: which conditions were the 2 false positives and 3 false
+  negatives. That is a development question and the held-out data should
+  not be used to adjust the model.
