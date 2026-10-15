@@ -103,11 +103,13 @@ def build(df: pd.DataFrame, steps_only: bool = True, min_minority: int = 1, held
     )
 
     rows = []
+    short = 0
     for (scenario, profile, magnitude), d in df.groupby(
         ["scenario_name", "fault_profile", "fault_magnitude"]
     ):
         repeats = len(d)
         if repeats < MIN_REPEATS:
+            short += 1
             continue
         p = d[d.passed]
         failures = repeats - len(p)
@@ -141,7 +143,9 @@ def build(df: pd.DataFrame, steps_only: bool = True, min_minority: int = 1, held
                 "feat_then_std_s": p.then_max.std() if len(p) >= 2 else None,
             }
         )
-    return pd.DataFrame(rows)
+    out = pd.DataFrame(rows)
+    out.attrs["short_groups"] = short
+    return out
 
 
 if __name__ == "__main__":
@@ -159,5 +163,6 @@ if __name__ == "__main__":
     if table.empty:
         raise SystemExit(f"No conditions to write to {out} (none found with at least {MIN_REPEATS} repeats).")
     table.to_csv(out, index=False)
-    print(f"wrote {out}: {len(table)} conditions")
+    print(f"wrote {out}: {len(table)} conditions "
+          f"({table.attrs.get('short_groups', 0)} further conditions had fewer than {MIN_REPEATS} repeats and were left out)")
     print(table.label.value_counts().to_string())

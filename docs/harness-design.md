@@ -1091,3 +1091,41 @@ working reliably via manual runs.
   in `build_training_table.py`. Checked: the development table is
   unchanged today (101 conditions), and rows copied to a held-out
   magnitude appear only in the held-out table.
+
+- **15th Oct 2026**: held-out data collected; final model frozen before
+  it is looked at. The three held-out runs completed in full: 840 rows,
+  42 conditions at exactly 20 repeats each, every row with step timings,
+  no duplicate rows. The failure text was scanned for leaks (the
+  environment address, URLs, email-like text): none. Only completeness
+  and security were checked; no outcome or failure rate from the
+  held-out rows has been computed or seen. The development table is
+  unchanged at 101 conditions, confirming the held-out exclusion works
+  on real data.
+  The frozen model (fixed now, not to change):
+  - Model: standardised features into logistic regression with balanced
+    class weights (scikit-learn, 1000 iterations).
+  - Features: `feat_then_median_s` and `feat_then_max_s`, the median
+    and maximum of the longest assertion step across a condition's
+    passing runs. This is the simplest set that did best in
+    development; action steps and spread added nothing.
+  - Training data: every development condition labelled always pass or
+    flaky under the headline rule (95 conditions, 21 flaky, all
+    profiles). No held-out data is used in training.
+  - Threshold: 0.5. No tuning.
+  Reported beside it, for context and not selected: the same procedure
+  on the total duration ratio features. The stricter labelling rule
+  (at least 3 failures and 3 passes) is reported beside the headline
+  with the same model. No other model type is evaluated on the held-out
+  data; other model families may be explored on development data
+  afterwards and would be labelled as after the fact.
+  Reporting, fixed now: precision and recall on all held-out conditions
+  and by profile, with confusion counts and 95% bootstrap intervals,
+  whatever they show. The 75% target is reported as met if both point
+  estimates are at least 0.75, with the interval stating how firmly; if
+  not, as not met.
+  Procedure: this entry, `analysis/final_evaluation.py` and the updated
+  `analysis/build_training_table.py` are committed together and tagged
+  `final-model-freeze`. Only after the tag are the held-out tables built
+  and the evaluation run, once. Anything changed after the tag (model,
+  features, labelling rule, threshold) means the held-out data is no
+  longer a final test, and would be reported as such.
