@@ -1194,3 +1194,143 @@ working reliably via manual runs.
   Not looked at: which conditions were the 2 false positives and 3 false
   negatives. That is a development question and the held-out data should
   not be used to adjust the model.
+
+- **25th Oct 2026**: Group B collected (Retry at magnitudes 2 and 3, Load
+  at 3000 and 4000), and the root-cause classifier plan fixed before any
+  modelling. Reason: Objective 3 needs failure evidence from more than
+  the delay faults, and Load had never been pushed past 2000.
+  Results, descriptive only:
+  - Retry 2 gave 13 failures and 27 passes; Retry 3 gave 11 failures and
+    29 passes. All 24 failures carry error text, failed step and network
+    events. The two PasswordReset validation scenarios passed at every
+    magnitude, so Retry failures still come from two scenarios only
+    (PasswordReset and CancelPasswordReset).
+  - Load 3000 and 4000: 8 runs at each magnitude, all passed, with no
+    hang. Load has now produced one failure in the whole dataset, so
+    there is still no overload class to learn from.
+  Decisions, made before any root-cause modelling:
+  - Label: the mechanism, derived from the injected fault family. Slow
+    response (Timing and Latency), failed request (Retry) and overload
+    (Load). Timing and Latency are one class because both delay a
+    response and their evidence is expected to look the same; separating
+    them would test the harness setting, not a cause a tester can act on.
+  - Overload is declared but cannot be trained or tested while Load
+    produces no failures. It will be reported as "no failures observed",
+    not as a result. One last probe, Load at 6000 and 8000 with one
+    repeat, is run; if it produces no failures, Load is stopped and the
+    absence is recorded as a finding.
+  - Inputs: failure evidence only (error kind, failed step kind, network
+    event pattern, message text, and failed-run step timings if useful).
+    Never the fault profile or magnitude, which would give the answer
+    away.
+  - A rules baseline is built first, from the same evidence, and the
+    classifier is reported against it. If the rules match the classifier,
+    that is the result.
+  - Evaluation is leave-one-scenario-out where a class has more than one
+    scenario, and the limits are stated up front: 65 development failures
+    with text including Group B (Retry 27, Latency 12, Timing 26), Timing
+    text from one scenario, Retry from two, so some folds cannot be run.
+  - Test data: failure text from the held-out Latency and Timing
+    conditions, which have not been used for any design decision, plus a
+    fresh Retry batch at new magnitudes. The Retry magnitudes 2 and 3
+    are development data from here on.
+  Data recovery: 211 older failures (19 Sep to 4 Oct, across 20 runs)
+  have no stored text because capture began on 8 Oct. The workflow
+  uploaded only the last iteration's trx per run, so the artifacts will
+  not hold them. The run logs may. A single run is checked first;
+  recovery is attempted for all 20 only if the log holds the error
+  message and can be matched to a row by magnitude, iteration and
+  scenario. Recovered text goes through the same masking before it is
+  stored, and would be marked as recovered so it can be analysed
+  separately.
+  Not done: no root-cause model has been fitted or scored.
+
+- **25th Oct 2026**: Load probe result (6000 and 8000, one iteration of
+  each of the 8 scenarios). All 16 runs failed: 8 at 6000 and 8 at 8000.
+  Every failure is a `System.TimeoutException` after 10000ms waiting for
+  a page element (the sort dropdown in 8 cases, a filter label in the
+  rest), at the "applies a filter" step. None recorded a failed network
+  request. Durations were 21 to 33 seconds at 6000 and 26 to 28 seconds
+  at 8000, against 12 to 23 seconds at 3000 and 4000.
+  This changes one decision recorded earlier today. The plan was to stop
+  Load if the probe produced no failures; it produced failures at every
+  scenario, so overload now has data (16 failures from 8 scenarios, one
+  run) and is no longer an untrained class.
+  Caveats, stated before any modelling: it is one run with one repeat per
+  condition, so these are not shown to be repeatable; both magnitudes
+  failed every scenario, so no flaky transition has been observed for
+  Load (3000 and 4000 passed, 6000 failed, nothing between); and the
+  failures are timeouts, which Timing and Latency also produce, so
+  whether the evidence separates overload from slow response is the open
+  question for the classifier, not an assumption.
+  Next, decided before running: a short Load batch between 4000 and
+  6000 (4500, 5000 and 5500) to find where failures begin, and repeats at
+  6000 to check the failures are repeatable. Nothing has been modelled.
+
+- **25th Oct 2026**: Load batches collected (4500, 5000 and 5500 at three
+  repeats; 6000 at three further repeats). Descriptive only, nothing
+  modelled. Failures per magnitude, with the probe included:
+  3000: 0 of 8; 4000: 0 of 8; 4500: 17 of 24; 5000: 23 of 24; 5500: 24 of
+  24; 6000: 32 of 32 (probe plus repeats); 8000: 8 of 8 (one run per
+  scenario). Load now holds 104 failures at 4500 and above.
+  Findings:
+  - The 6000 failures repeat: 32 of 32 failed, so the probe was not a
+    one-off.
+  - The change is sharp. 4000 passed every run and 4500 failed about 70%
+    of them. Of the 40 conditions (5 magnitudes across 8 scenarios), 4
+    are mixed: 3 at 4500 and 1 at 5000. Any flaky zone for Load lies
+    between 4000 and 4500 and is narrow.
+  - All 104 failures are `System.TimeoutException` after 10000ms waiting
+    for a page element, at the filter step, and none recorded a network
+    event. Timing and Latency failures are also timeouts, so whether the
+    captured evidence separates overload from slow response is still the
+    open question for the classifier.
+  Consequences: the Load conditions have 3 or 4 repeats each, below the 5
+  required for the condition table, so they do not enter the flaky
+  classifier's data and Objective 2 is unchanged. They are used for
+  Objective 3 at the level of individual failures. No further Load data
+  is collected: the overload class has enough failures, and widening the
+  narrow transition would only matter for the flaky classifier, which is
+  a separate decision.
+
+- **25th Oct 2026**: failure text recovered from run logs, and a
+  disclosure, both made before any root-cause modelling.
+  Recovery. The 211 failures captured before 8 Oct stored no failure text.
+  The GitHub Actions logs of the 20 runs involved are still available
+  (`gh run view --log`) and hold, for every failed test, the scenario
+  name, error message, stack trace and standard output, including step
+  timings and `[RequestFailed]` lines. `analysis/recover_from_logs.py`
+  rebuilds the four text columns from them with the workflow's own
+  functions and masking, and matches each failure to its row by run,
+  magnitude, iteration and scenario name. Result: 211 of 211 matched,
+  each to exactly one row, with no failure left unmatched in either
+  direction. The script refuses to write if any URL remains unmasked.
+  Method note: logs from before 4 Oct have no iteration heading, so for
+  those the iteration was taken by counting the dotnet test runs in
+  order. The 118 failures this applies to all matched, which supports
+  it, but it is an inference and not a printed label. Recovered text is
+  in `data/recovered-failure-text.csv`, flagged as recovered; the main
+  results file is unchanged and the raw logs are kept outside the
+  repository.
+  Effect on the data. None of the 211 is from a held-out condition
+  (those were collected on 15 Oct). Development failures with text are
+  now 380: Retry 43, Latency 166, Timing 66, Load 105. Timing text now
+  comes from both login scenarios and Latency from six scenarios, where
+  before it came from one and five. Retry still comes from two scenarios.
+  Decision, made before modelling: results will be reported both with
+  and without the recovered rows, since they differ from live capture in
+  one way (taken from logs, not the trx), so any difference between the
+  two is visible.
+  Disclosure. While answering a question about the logs, I counted
+  how many failures with text have a recorded network event, by fault
+  profile and across every failure, including the held-out Latency and
+  Timing conditions. The counts were Latency 171 of 176, Retry 19 of 27,
+  Timing 0 of 54 and Load 0 of 104. Only whether the field was filled was
+  counted; no held-out message was read. Held-out failure text is
+  therefore no longer completely unseen for this one property. Nothing
+  was fitted to it. These counts predate the recovery and cover live
+  capture only.
+  Observation, descriptive: Timing and Load failures both have no network
+  events and both end in timeouts, so separating them is the hard part of
+  Objective 3. Latency failures nearly always show an aborted request and
+  Retry failures a failed one.
