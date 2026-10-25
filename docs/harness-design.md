@@ -1334,3 +1334,32 @@ working reliably via manual runs.
   events and both end in timeouts, so separating them is the hard part of
   Objective 3. Latency failures nearly always show an aborted request and
   Retry failures a failed one.
+
+- **25th Oct 2026**: root-cause test batches fixed before any of them
+  was run. Reason: the root-cause classifier needs failures it was not
+  designed on, for each class, and only slow response has them so far.
+  Test data per class:
+  - Slow response: the held-out Latency and Timing conditions collected
+    on 15 Oct (192 failures with text). Nothing new to run.
+  - Failed request: Retry at magnitudes 4 and 5, 10 repeats each, all
+    four PasswordReset scenarios. Neither magnitude has any data today.
+  - Overload: Load at magnitudes 4750, 6500 and 7000, 3 repeats each, all
+    eight Documents scenarios. None of these has any data today.
+  This changes one statement above: the Load batches entry said no
+  further Load data would be collected. That was about finding where
+  failures begin, which is unchanged; the new batch has a different
+  purpose, a held-out test for overload, which otherwise has none.
+  How they will be used: only for the final root-cause test, once, after
+  the evaluation design is committed and the model is frozen. They are
+  excluded from development by magnitude. Until then they are checked
+  only for completeness (rows present, text present, no unmasked address)
+  and no failure message from them is read or modelled.
+  Limits, stated now: the batches use the same scenarios as development
+  (Retry fails in two, Load in all eight), so a good result shows carry
+  over to new magnitudes and not to new scenarios; the classes are
+  defined by the injected fault family, so a good result means the
+  evidence separates the injected causes and does not show it would
+  recognise causes outside them.
+  Not decided here: the failure table layout, the rules baseline, the
+  success criterion and the split within development data. These are
+  fixed in the next entry, before any modelling.
