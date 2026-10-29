@@ -1,6 +1,6 @@
 # PRAT test-execution harness: design notes
 
-Status: in progress, started 3rd September 2026.
+Status: data collection finished for both objectives. The flaky test classifier (Objective 2) is built and evaluated. The root-cause classifier (Objective 3) has its evaluation designed and fixed, with nothing modelled yet. Started 3rd September 2026; this top part last updated 29th October 2026. The build log at the end is the full dated record of decisions, results and corrections; the sections above it describe the current state.
 
 ## Purpose
 
@@ -11,66 +11,106 @@ flakiness (timing, concurrency, load, latency, retry behaviour) across a
 subset of PRAT's existing scenarios, producing genuine, self-labelled
 pass/fail data with known ground truth.
 
+That data feeds two classifiers for the applied project. Objective 2
+decides whether a test is flaky (target: at least 75% precision and
+recall). Objective 3 decides the likely root cause of a failure from its
+evidence, and is due to feed PRAT's reporting by mid December 2026. The
+prototype is due in January 2027.
+
 ## Architecture
 
-Originally scoped as five stages, each extending an existing PRAT
-component. Stages 1–2 held; stages 3–4 didn't happen as planned and are
-corrected below (19th Sept) once it became clear `TestRunner.Web` was
-never actually touched by any of this work.
+Seven stages. Stages 1 to 2 held as planned; stages 3 and 4 were built
+differently from the original plan (corrected 19th Sept, once it became
+clear `TestRunner.Web` was never touched by any of this work); stages 5
+to 8 describe what exists now.
 
-1. **Existing PRAT scenarios** — Login, Documents, Navigation, PasswordReset
-   (the four currently-active Reqnroll features). Unmodified.
-2. **Fault injection layer** — five configurable profiles (see below),
-   applied via an `IFaultProfile` interface.
-3. **Harness orchestrator** — ~~extends `TestRunnerService`~~ **actually
-   built as**: `.github/workflows/harness.yml`, a GitHub Actions
-   workflow running `dotnet test` directly with `FAULT_PROFILE`/
-   `FAULT_MAGNITUDE` set. `TestRunner.Web` is untouched — confirmed by
-   grep, no references anywhere in the harness code. This was a
-   reasonable substitution (it works, proven across all five profiles)
-   but the original plan's wording was never corrected until now.
-4. **Result capture and labelling** (built 19th to 24th Sept):
-   ~~extends `TestRunReport`~~ **actually built as** a step inside the
-   harness workflow that, after each iteration, parses the `.trx` and
-   appends one row per scenario to `data/harness-results.csv` in the
-   repo, joined with the run's metadata (fault profile, magnitude,
-   target category, iteration, run id and URL, commit, timestamp), then
-   commits it back to the branch. Run metadata reaches the script as
-   environment variables; the original JSON sidecar was dropped (see
-   build log, 24th Sept). Guards refuse to append if the header no
-   longer matches the schema, and repair a missing trailing newline
-   before appending.
-5. **Labelled training dataset**: the CSV above is the dataset. It
-   exists and is growing, but is not yet large or balanced enough to
-   train a classifier on (see build log, 24th Sept and 1st Oct). The
-   next piece of work is generating it at scale through a magnitude
-   sweep.
+1. **Existing PRAT scenarios.** 25 scenarios in four families: Login (5),
+   Documents (8), Navigation (8) and PasswordReset (4). Unmodified.
+2. **Fault injection layer.** Five profiles behind an `IFaultProfile`
+   interface (see below). Four have been run; Concurrency is built and
+   deliberately never run.
+3. **Harness orchestrator.** Originally planned as an extension of
+   `TestRunnerService`; actually built as `.github/workflows/harness.yml`,
+   a GitHub Actions workflow running `dotnet test` directly with
+   `FAULT_PROFILE` and `FAULT_MAGNITUDE` set. `TestRunner.Web` is untouched.
+   It works across the four profiles that were run.
+4. **Result capture and labelling.** A step inside the workflow that, after
+   each iteration, parses the `.trx` and appends one row per scenario to
+   `data/harness-results.csv`, joined with the run's metadata (fault
+   profile, magnitude, target category, iteration, run id and URL, commit,
+   timestamp), then commits it back to the branch. Since 8th Oct it also
+   captures failure text (error message, failed step, failed network
+   requests) and step timings, with hosts and email addresses masked
+   because the repository is public. The 211 failures captured before then
+   were recovered from the run logs into
+   `data/recovered-failure-text.csv`, flagged as recovered.
+5. **Labelled dataset.** `data/harness-results.csv`: 4,347 rows from 64
+   workflow runs between 19th Sept and 29th Oct 2026 (Timing 1,005,
+   Latency 2,016, Retry 718, Load 608). One row per scenario run, with the
+   outcome known.
+6. **Analysis pipeline.** `analysis/build_training_table.py` turns runs
+   into one row per condition (scenario, profile, magnitude) for
+   Objective 2; `evaluate_baseline.py` compares feature sets with
+   leave-one-scenario-out validation; `final_evaluation.py` applies the
+   frozen model once to held-out conditions; `recover_from_logs.py`
+   recovers older failure text from run logs; `migrate_schema.py` changes
+   the results file schema safely.
+7. **Models.** Objective 2: a scaled logistic regression on two
+   assertion-step timing features, frozen under the tag
+   `final-model-freeze` and tested once on held-out conditions (precision
+   0.89, recall 0.85 by point estimate, with the caveats in the build log,
+   15th Oct). Objective 3: failure examples, rules baseline, two candidate
+   models, test batches and success criterion fixed on 29th Oct; no model
+   has been fitted.
+8. **Integration into PRAT reporting.** Not started. Due mid December 2026.
 
 ## Fault profiles
 
-| Profile | Target scenario | Mechanism |
-|---|---|---|
-| Timing/race | Login | Configurable delay before the outcome assertion |
-| Concurrency | Login | Parallel `BrowserContext` sessions against a shared account pool |
-| Environment load | Documents | Inflated document fixture data before the scenario runs |
-| Network latency | Navigation | `Page.RouteAsync`, delayed `ContinueAsync()` |
-| Retry behaviour | PasswordReset | `Page.RouteAsync`, `AbortAsync()` on first matching request |
+| Profile | Paired family | Mechanism | Status |
+|---|---|---|---|
+| Timing | Login | Delays every network response by the magnitude in milliseconds (`NetworkDelayFaultProfile`, shared with Latency) | Run |
+| Latency | Navigation | The same implementation as Timing, paired with a different family | Run |
+| Retry | PasswordReset | `Page.RouteAsync` aborts the first N requests, N being the magnitude | Run |
+| Load | Documents | Rewrites the Documents metadata response to hold N extra copies of the documents | Run |
+| Concurrency | Login | Parallel `BrowserContext` sessions against a shared account pool | Built, deliberately never run |
+
+Each profile has its own scenario family by default. The workflow's
+`target_category` input (added 29th Oct) runs a profile against another
+family instead, so that a failure's cause can be told apart from the page
+it happened on. Load cannot be crossed, because it rewrites one endpoint
+only.
 
 ## Key decisions
 
-- **Configuration follows PRAT's existing convention** — `FAULT_PROFILE`
-  and `FAULT_MAGNITUDE` alongside the existing `ENVIRON`, `HEADED`,
+- **Configuration follows PRAT's existing convention.** `FAULT_PROFILE`
+  and `FAULT_MAGNITUDE` sit alongside the existing `ENVIRON`, `HEADED`,
   `BROWSER` parameters, rather than a separate configuration mechanism.
 - **Harness runs outside PRAT's normal CI gate.** Repeated fault-injected
   runs are slow and, by design, sometimes fail. Mixing them into the
   pipeline that gates releases would make that signal noisy for everyone
-  else using PRAT. A separate, scheduled pipeline feeds harness results
-  into the training dataset on its own cadence.
-- **Concurrency and load profiles have external dependencies.**
-  `CredentialReader`/`Credentials` needs to be confirmed thread-safe under
-  parallel access. Data seeding for the load profile needs an approach
-  (API, direct DB seed, or otherwise), to confirm with line manager
-  alongside environment access.
+  else using PRAT. The harness has its own manually triggered workflow
+  that feeds results into the dataset.
+- **Concurrency is not run.** Decided 18th Sept, as there was no clear
+  owner to give the security and fraud monitoring heads-up that parallel
+  login traffic needs. The profile is kept as built code.
+- **Decisions before results.** Labelling rules, features, test plans and
+  success criteria are written into the build log and committed before
+  the results they govern are seen. The Objective 2 model was frozen under
+  a tag before its held-out conditions were scored, and the held-out
+  conditions are excluded from the development table.
+- **Labelling.** A condition is flaky when it has mixed outcomes over at
+  least 5 repeats (the headline rule). A stricter rule (at least 3
+  failures and 3 passes) is reported beside it as a sensitivity check.
+- **No leakage.** Objective 2 features come from passing runs only, never
+  from the profile, magnitude, failure counts or failed-run durations.
+- **Root cause labels are mechanisms.** Slow response (Timing and
+  Latency), failed request (Retry) and overload (Load). Features are
+  limited to evidence that does not identify the page, a rules baseline is
+  built first, and the cross category batches test whether the classifier
+  recognises causes and not scenario families. The classifier is used in
+  PRAT only if it beats the rules on the primary test.
+- **Public repository.** Failure text is masked before it is stored, no
+  credentials are committed, and secrets live in GitHub Secrets.
 
 ## Login authentication on QA2/DEV
 
@@ -105,84 +145,89 @@ rollout to manage this:
   mistaken for an incident. Not a formal sign-off process, just advance
   notice.
 
+**Update, 29th Oct 2026:** Load was built and confirmed against REL on 17th and 18th
+Sept (see build log) and has run through the workflow since 24th Sept. It
+rewrites the Documents response in the browser, so REL sees the same request
+pattern as any normal run and needed no heads-up. Concurrency was not run,
+as above.
+
 ## Pipeline
 
 REL is customer-facing and reachable from the public internet, so a
-GitHub Actions workflow using GitHub-hosted runners can reach it
-directly, no self-hosted runner needed. This keeps the harness pipeline
-off company Azure DevOps infrastructure entirely, consistent with the CI
-isolation decision above, and mirrors the approach already used for the
+GitHub Actions workflow using GitHub-hosted runners reaches it directly,
+with no self-hosted runner. This keeps the harness off company Azure
+DevOps infrastructure entirely, and mirrors the approach used for the
 personal website project's GitHub Actions pipeline.
 
-`.github/workflows/harness.yml` added: manual (`workflow_dispatch`)
-trigger for now, with `fault_profile` (Timing/Latency/Retry — Concurrency
-and Load excluded pending the monitoring-owner heads-up) and
-`fault_magnitude` inputs. Generates `appsettings.local.json` and
-`credentials.local.json` at runtime from GitHub Secrets (never
-committed), builds, installs Playwright browsers, then runs
-`dotnet test` filtered to the relevant feature tag with `ENVIRON=REL`,
-`FAULT_PROFILE`, `FAULT_MAGNITUDE` set. Results uploaded as a `.trx`
-artifact, a placeholder until the "result capture and labelling" stage
-(extending `TestRunReport`) is built.
+`.github/workflows/harness.yml` runs on manual trigger (`workflow_dispatch`)
+only; a schedule is not enabled. Inputs: `fault_profile` (Timing, Latency,
+Retry or Load), `fault_magnitude` (one value or a comma separated list, run
+in turn), `target_category` (default, or a scenario family to cross the
+profile with) and `repeat_count`. Runs queue in a concurrency group so two
+batches never overlap.
 
-Required GitHub Secrets (repo settings, not yet added):
-`REL_BASE_URL`, `REL_GOOD_EMAIL`, `REL_GOOD_PASSWORD`, `REL_BAD_EMAIL`,
-`REL_BAD_PASSWORD`.
+Each run writes `appsettings.local.json` and `credentials.local.json` at
+runtime from GitHub Secrets (never committed), builds, installs Playwright
+browsers, then runs `dotnet test` filtered to the target family with
+`ENVIRON=REL`. After every iteration the workflow appends rows to
+`data/harness-results.csv`, commits and pushes, so a cancelled or failed
+run keeps what it had gathered; the bot commits mean a `git pull` is
+needed between runs. A failing test does not stop the loop; the exit code
+is reported at the end so the run still shows red. Only the last
+iteration's `.trx` is uploaded as an artifact, so the run logs, not the
+artifacts, hold the earlier iterations' detail.
 
-Note: the workflow is ready to pass `FAULT_PROFILE`/`FAULT_MAGNITUDE`
-through, but nothing in the codebase resolves them yet. Running it today
-exercises the existing scenarios normally with no fault actually
-injected, pending the profile registry and the Latency/Retry
-implementations (next up).
+Required GitHub Secrets (names only): `REL_BASE_URL`, `REL_GOOD_EMAIL`,
+`REL_GOOD_PASSWORD`, `REL_BAD_EMAIL`, `REL_BAD_PASSWORD`,
+`REL_INVALID_EMAIL`, `REL_INVALID_PASSWORD`, `REL_RESET_EMAIL`.
 
-Move to a scheduled trigger once Timing/Latency/Retry are all proven
-working reliably via manual runs.
+All four profiles that run are client side: an artificial delay,
+Playwright aborting requests in the browser, or the Documents response
+rewritten in the browser. REL sees no unusual server side traffic from
+them.
 
 ## Open questions
 
 - ~~Confirmed thread safety of `CredentialReader` under concurrent
-  access?~~ Resolved 18th Sept — see build log.
-- ~~Data seeding approach for the load profile (against REL test
-  data)?~~ Resolved via response-rewriting rather than real data
-  seeding — see build log, 17th–18th Sept.
-- Exact `FAULT_MAGNITUDE` ranges per profile. Boundaries found so far:
-  Timing and Latency pass at 500 and 2000 and fail at 12000; Retry
-  passes at 0 and fails at 1; Load passes at 500 and fails at 2000.
-  This is now actively needed rather than optional: the classifier
-  needs examples across the range, especially near each failure
-  threshold, not only at the extremes. Sweep done (see build log, 1st,
-  4th and 8th Oct). Boundaries as of 8th Oct: Latency starts failing
-  at 2500 (about 7% of runs; 1% at 2000); Timing starts failing at
-  3000 (3 of 20 repeats of the valid login scenario), is the same at
-  3500, and fails every time at 4000.
+  access?~~ Resolved 18th Sept, see build log.
+- ~~Data seeding approach for the load profile?~~ Resolved via response
+  rewriting rather than real data seeding, see build log, 17th and 18th
+  Sept.
+- ~~Exact `FAULT_MAGNITUDE` ranges per profile.~~ Mapped (build log, 1st
+  Oct to 29th Oct). Latency starts failing at 2500 and Timing at 3000;
+  Retry fails the PasswordReset scenario from magnitude 1; Load passes at
+  4000 and fails about 70% of runs at 4500, with every run failing from
+  5500. Load has a narrow flaky zone between 4000 and 4500.
 - Why did Load at magnitude 750 with 5 repeats run for over two hours
   before being cancelled? Undiagnosed, as nothing survived to inspect.
-  Not reproduced on 3rd Oct: 750 at 1 repeat, and 1000 and 1250 at 5
-  repeats, all finished normally. Probably a one-off.
+  Not reproduced on 3rd Oct, and no hang since in later Load runs.
+  Probably a one-off.
 - ~~Why did the sweep runs for Timing and Latency at 4000 to 10000 and
-  Retry leave no rows?~~ Resolved 3rd Oct: a failing `dotnet test`
-  ended the loop script before the append (see build log). Load at 750
-  is a separate, still undiagnosed hang.
-- Do first iterations of a run fail more often than later ones (a
-  warm-up effect)? Suggestive but unproven, see the 3rd Oct entry on
-  the verified loop fix. Settle with more data from the planned sweep
-  before deciding whether to flag, filter or warm up.
+  Retry leave no rows?~~ Resolved 3rd Oct: a failing `dotnet test` ended
+  the loop script before the append.
+- Do first iterations of a run fail more often than later ones (a warm-up
+  effect)? Suggestive but unproven, see the 3rd Oct entry. Not pursued.
 - ~~Would a step-level timing feature lift classifier precision?~~
-  Answered 4th and 8th Oct: it helps a great deal across profiles
-  (precision 0.68 against 0.21 for total duration) but only matches
-  total duration within delay-type faults. See the build log.
-- What counts as a flaky condition? Currently any mix of passes and
-  failures over at least 5 repeats. 10 of the 22 mixed conditions have
-  only one or two outcomes in the minority, so those labels depend
-  heavily on the definition. Options: keep the current rule, or require
-  a minimum failure count (for example 3), reporting both. To be
-  decided before looking at which scores better, so the choice cannot
-  be tuned to the result. Decided 8th Oct, before any comparison: see
-  the build log.
-- ~~Timing for the Concurrency/Load heads-up to REL's security/fraud
-  monitoring owner?~~ Decided 18th Sept not to pursue: no clear owner
-  given the organisational changes. Concurrency remains unrun against
-  REL as a deliberate scope decision — see build log.
+  Answered 4th and 8th Oct: it helps a great deal across profiles but only
+  matches total duration within delay faults.
+- ~~What counts as a flaky condition?~~ Decided 8th Oct, before any
+  comparison: mixed outcomes over at least 5 repeats, with a stricter rule
+  reported beside it.
+- ~~Timing for the Concurrency and Load heads-up to REL's monitoring
+  owner?~~ Decided 18th Sept not to pursue; Concurrency stays unrun as a
+  scope decision.
+- Does the captured evidence separate overload from slow response? Both
+  end in timeouts with no failed network request. This is the hard part of
+  Objective 3 and is tested by the cross category batches.
+- Do the 211 recovered failures behave differently from live capture?
+  Results will be reported with and without them.
+- Why does Retry fail only in the Login and PasswordReset families? None
+  of 320 runs against Documents and Navigation failed, at magnitudes up to
+  5. Not diagnosed.
+- How should the root-cause classifier run inside PRAT, which is .NET: as
+  rules written in C#, as a script called from the report step, or as an
+  exported model? To be decided once the evaluation shows whether a model
+  beats the rules.
 
 ## Build log
 
