@@ -1553,7 +1553,7 @@ them.
   | C3 | Retry | Login | 2, 3 | 50 | 20 |
   | C4 | Latency | PasswordReset | 2500, 3500, 4500, 5500 | 80 | 7 |
   | C5 | Retry | Navigation | 2, 3, 4, 5 | 160 | 0 |
-  
+
   Top up. C1, C2, C4 and C5 each had fewer than 20 failures at the first
   magnitudes, so each was run once more at the stronger settings fixed
   above (Latency 4500 and 5500, Retry 4 and 5), as the rule says. C1
@@ -1597,3 +1597,53 @@ them.
   overload is tested on Documents pages only.
   Not done: no failure text from these batches has been read, no model
   has been fitted, and nothing has been scored.
+
+- **29th Oct 2026**: root-cause failure table and rules baseline built,
+  development data only. `analysis/build_failure_table.py` writes
+  `data/failure-table.csv`, one row per failed run. Failure text for the
+  211 older failures comes from `data/recovered-failure-text.csv`, merged
+  on run, magnitude, iteration and scenario, and flagged `recovered` as
+  metadata only. Development rows are default family runs that are not
+  held out, not Retry 4 or 5 and not Load 4750, 6500 or 7000: 380
+  failures (Latency 166, Load 105, Timing 66, Retry 43) across 84
+  conditions, of which 211 are recovered. Labels: slow response 232 (8
+  scenarios), overload 105 (8), failed request 43 (2).
+  Test rows (held-out Timing and Latency conditions, Retry 4 and 5, Load
+  4750, 6500 and 7000, and every cross family run) are written only by
+  `--test` to `data/failure-test-table.csv`. That has not been run, the
+  file does not exist, and no test failure text has been read.
+  Features, all scenario agnostic: exception type (timeout or Playwright
+  expectation), timeout stated in the message, keyword of the failed step
+  (Given, When, Then), its position, seconds in and before it, and the
+  count, kind and method of failed network requests. Excluded: scenario
+  name, step and locator text, URL paths, profile, magnitude, run and the
+  recovered flag. The script asserts that no feature column is also a
+  metadata column.
+  Rules baseline, `analysis/root_cause_rules.py`, fixed before any model
+  is fitted: a failed network request (`net::ERR_FAILED`) gives failed
+  request; otherwise a 10 s `TimeoutException` gives overload; otherwise
+  slow response. Reasoning from the mechanisms: Retry aborts requests,
+  Load makes a step wait out its full timeout, and Timing and Latency let
+  a 5 s expectation run out. The rules learn nothing, so they are not
+  frozen and are the baseline any model must beat.
+  Development score of the rules (accuracy 0.96, macro recall 0.90):
+  slow response precision 1.00 and recall 0.99, failed request precision
+  1.00 and recall 0.70, overload precision 0.88 and recall 1.00. The 13
+  missed failed request failures are Retry failures that timed out with
+  no failed request recorded, so they look like overload. Intervals
+  (cluster bootstrap by condition, 2000 resamples, seed 20261029) are
+  wide for failed request (recall 0.00 to 0.87) because it has two
+  scenarios. Live capture only gives the same picture (accuracy 0.95).
+  Disclosure: the rules were written after viewing development feature
+  means by label, never test rows, so the development score is
+  optimistic and carries no weight as evidence. The test score is the
+  evidence.
+  Expectation, recorded before modelling: separation is easy on
+  development data, so the models are unlikely to beat the rules there.
+  The informative question is whether either generalises across families
+  (Load only ever ran on Documents pages, Retry on PasswordReset), which
+  only the test batches can answer. The decision rule above stands: the
+  classifier is used in PRAT only if it beats the rules on the test
+  parts, otherwise the rules are used.
+  Not done: no model has been fitted, no test table has been built, and
+  nothing has been scored on test data.
