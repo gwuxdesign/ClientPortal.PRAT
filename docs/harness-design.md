@@ -1465,7 +1465,7 @@ working reliably via manual runs.
   | C3 | Retry | Login | 2, 3 | 50 |
   | C4 | Latency | PasswordReset | 2500, 3500 | 40 |
   | C5 | Retry | Navigation | 2, 3 | 80 |
-  
+
   Top up rule, decided now: if a batch yields fewer than 20 failures, it
   is run once more at stronger settings (Latency 4500 and 5500; Retry 4
   and 5), and no further. Only failure counts are looked at to apply
@@ -1496,3 +1496,59 @@ working reliably via manual runs.
   family test batches (Retry 4 and 5, held-out Latency and Timing) are
   also reported, as evidence of carry over to new magnitudes.
   Not done: nothing has been run, fitted or scored.
+
+- **29th Oct 2026**: cross category batches collected, a run in the wrong
+  family disclosed, and the primary test amended, all before any failure
+  text from them was read and before anything was scored.
+  Batches as run (rows; failures), after the top up rule below:
+  | Batch | Profile | Family | Magnitudes | Rows | Failures |
+  | --- | --- | --- | --- | --- | --- |
+  | C1 | Latency | Documents | 2500, 3500, 4500, 5500 | 160 | 98 |
+  | C2 | Retry | Documents | 2, 3, 4, 5 | 160 | 0 |
+  | C3 | Retry | Login | 2, 3 | 50 | 20 |
+  | C4 | Latency | PasswordReset | 2500, 3500, 4500, 5500 | 80 | 7 |
+  | C5 | Retry | Navigation | 2, 3, 4, 5 | 160 | 0 |
+  
+  Top up. C1, C2, C4 and C5 each had fewer than 20 failures at the first
+  magnitudes, so each was run once more at the stronger settings fixed
+  above (Latency 4500 and 5500, Retry 4 and 5), as the rule says. C1
+  passed 20 failures; C2, C4 and C5 did not, and under the rule they get
+  no further top up. All 125 failures have text, failed step and step
+  timings, with no unmasked address. Only counts were looked at.
+  Wrong family run. The C5 top up was first started with the family left
+  at default, so it ran Retry 4 and 5 against PasswordReset (run
+  40896356159, 40 rows, 10 failures) and not Navigation. It was rerun
+  correctly (run 40897770295). The rows from the wrong run are kept and
+  nothing is deleted. They are 5 extra repeats at Retry 4 and 5 on the
+  PasswordReset scenarios, the same conditions as the Retry test batch,
+  which now have 15 repeats each instead of 10. They count as part of
+  that batch, and the cross category rows are not affected, because the
+  correct run is separate. The cause was a form setting chosen by hand.
+  Finding, descriptive: Retry faults produced failures only in the Login
+  and PasswordReset families. None of 320 Retry runs against Documents
+  and Navigation failed, at magnitudes up to 5. Latency broke Documents
+  readily (98 of 160) and PasswordReset rarely (7 of 80).
+  Consequence for the test. The primary test above needed Retry failures
+  in Documents, and there are none. The amended primary test, decided
+  here from batch counts alone, has two parts, each a two class problem
+  where the development data saw the family with only one of the two
+  classes:
+  - Documents: overload (Load test batch, 72 failures) against slow
+    response (C1, 98 failures). Development saw Documents only as
+    overload, so a classifier that recognises the page will call the
+    slow response failures overload.
+  - Login: failed request (C3, 20 failures) against slow response
+    (held-out Timing conditions, 28 failures). Development saw Login only
+    as slow response.
+  Success criterion (replaces the one above): precision and recall of at
+  least 0.75 for each class in each of the two parts, judged by point
+  estimate with the interval shown. The classifier is used in PRAT only
+  if the mean of the two parts' macro F1 beats the rules baseline's; if
+  it does not, the rules are used and the finding is that rules suffice.
+  PasswordReset (C4, 7 slow response failures) and the other same family
+  test batches (Retry 4 and 5, held-out Latency and Timing) are reported
+  without a criterion. Navigation has no failed request failures to test
+  with. Stated limits: Retry is crossed with one family only, and
+  overload is tested on Documents pages only.
+  Not done: no failure text from these batches has been read, no model
+  has been fitted, and nothing has been scored.
