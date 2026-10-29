@@ -63,6 +63,9 @@ import pandas as pd
 
 MIN_REPEATS = 5
 HELD_OUT = {"Timing": [3250, 3750], "Latency": [2250, 2750, 3250, 3750]}
+# Each profile's own scenario family. Rows where a profile was crossed with
+# another family (root-cause test batches) are not condition-table data.
+DEFAULT_CATEGORY = {"Timing": "Login", "Latency": "Navigation", "Retry": "PasswordReset", "Load": "Documents"}
 SRC = Path("data/harness-results.csv")
 OUT = Path("data/training-table.csv")
 
@@ -81,6 +84,7 @@ def longest(steps, assertion):
 
 def build(df: pd.DataFrame, steps_only: bool = True, min_minority: int = 1, heldout_only: bool = False) -> pd.DataFrame:
     df = df.copy()
+    df = df[df.target_category.eq(df.fault_profile.map(DEFAULT_CATEGORY))]
     if steps_only:
         df = df[df.step_seconds.notna() & (df.step_seconds != "")]
     df["passed"] = df["outcome"].eq("Passed")

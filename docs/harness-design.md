@@ -1363,3 +1363,136 @@ working reliably via manual runs.
   Not decided here: the failure table layout, the rules baseline, the
   success criterion and the split within development data. These are
   fixed in the next entry, before any modelling.
+
+- **29th Oct 2026**: disclosure on the root-cause test batches. Retry at
+  4 and 5 (run 40220333300) and Load at 4750, 6500 and 7000 (run
+  40228285694) were run on 25 Oct as fixed above. The checks the entry
+  allowed were made: all rows present (80 and 72), failure text present
+  for every failure, no unmasked address. One further look went beyond
+  them: the pass and fail counts per magnitude were printed. Retry 4 and
+  5 each failed 10 of 40 runs; Load 4750, 6500 and 7000 each failed 24
+  of 24. No failure message from these batches has been read, and
+  nothing has been modelled. The counts did not change any decision; they
+  show only the class balance of the test set (Retry 20 failures, Load
+  72), which is stated in the evaluation design.
+
+- **29th Oct 2026**: root-cause classifier evaluation design, fixed
+  before any modelling and before any failure text from the test batches
+  has been read.
+  Unit and label. One failed run is one example. The label is the
+  mechanism of the injected fault: slow response (Timing and Latency),
+  failed request (Retry), overload (Load). Development data: 380
+  failures with text (live capture 169 plus 211 recovered): slow
+  response 232, failed request 43, overload 105. Test data: the held-out
+  Latency and Timing conditions (192), Retry 4 and 5 (20) and Load 4750,
+  6500 and 7000 (72).
+  Observation from the code, made while designing: Timing and Latency
+  are one implementation (`NetworkDelayFaultProfile`) that differs only
+  in name and in the scenarios it is paired with (Login and Navigation).
+  This supports treating them as one class. Retry aborts the first N
+  requests of any kind and Load inflates the Documents response; neither
+  is tied to a scenario by its code, only by the workflow's mapping.
+  Main threat, stated before the results. Each class comes from its own
+  family of scenarios (Timing: login; Latency: navigation; Retry:
+  password reset; Load: documents filtering). Anything that identifies
+  the page, such as step text, locator text, URL paths or scenario name,
+  would identify the class without recognising any cause. So the
+  features are limited to scenario-agnostic evidence:
+  - exception type, and whether the message is a timeout or a failed
+    expectation, and the timeout length stated in it;
+  - failed step keyword (Given, When, Then), its position, how many steps
+    completed before it, and the seconds spent in it and before it;
+  - number of failed network events (0 to 3), their kind (aborted,
+    failed, none) and request method.
+  Excluded: scenario name, step and locator text, URL paths, profile,
+  magnitude, run id, the recovered flag. Step position and keyword may
+  still partly track the scenario family, so ablations are fixed now:
+  network event features only; step and timing features only; all
+  together. A class separated only by the second group is reported as
+  possibly family driven.
+  Rules baseline, written before modelling from the development
+  counts already described: a failed network event of kind failed gives
+  failed request; kind aborted gives slow response; no network event
+  gives overload (the larger class among failures with none: Load 105,
+  Timing 66). The classifier must be compared against this.
+  Models. Two only, chosen between on development: a decision tree of
+  depth at most 3 and a logistic regression, both with balanced class
+  weights. No further model types are tried.
+  Development evaluation. Leave one scenario out, within the family
+  structure above (every class has at least two scenarios). Reported per
+  class: precision, recall, and macro F1 over the three classes; the
+  confusion matrix; and each result with and without the recovered rows.
+  Intervals: bootstrap resampling conditions (scenario and magnitude),
+  not single runs, because runs within a condition are not independent.
+  Freeze. The chosen model, features and threshold (highest score wins)
+  are tagged `root-cause-freeze` before the test batches are scored. The
+  test is run once.
+  Success criterion, fixed now. As for Objective 2, precision and recall
+  of at least 0.75 for each class on the test batches, judged by point
+  estimate with the interval shown. The classifier is used in PRAT only
+  if it beats the rules baseline in macro F1 on the test batches; if it
+  does not, the rules are used and the finding is that rules suffice.
+  Limits, stated now: test batches share scenarios with development, so
+  they show carry over to new magnitudes and not new scenarios; classes
+  are the injected causes only; the Retry test has 20 failures, so its
+  per class intervals will be wide.
+  Not decided here: a cross category test (profiles run against scenario
+  families they were not paired with), which would remove the family
+  confound directly. It needs a workflow change and is decided in a
+  separate entry before any such run.
+  
+- **29th Oct 2026**: cross category test batches fixed before any was
+  run, and the success criterion above amended before anything is
+  scored. Reason: every class comes from its own scenario family, so a
+  classifier scored on the same families could be recognising the page.
+  Running profiles against families they were not paired with removes
+  that confound directly.
+  Change to the harness: `harness.yml` gains an optional
+  `target_category` input. Left at default, each profile runs its own
+  family as before; set to another family it runs against that one. The
+  results file already records `target_category` per row.
+  `build_training_table.py` now drops rows where a profile ran against a
+  family other than its own, so the condition tables for Objective 2 are
+  unchanged by these runs (checked: rebuilt tables are byte identical
+  with and without the change, on current data).
+  Batches (Latency stands for the delay class, since Timing and Latency
+  are one implementation; 5 repeats each; client side faults only, so the
+  traffic REL sees does not increase):
+  | Batch | Profile | Family | Magnitudes | Runs |
+  | --- | --- | --- | --- | --- |
+  | C1 | Latency | Documents | 2500, 3500 | 80 |
+  | C2 | Retry | Documents | 2, 3 | 80 |
+  | C3 | Retry | Login | 2, 3 | 50 |
+  | C4 | Latency | PasswordReset | 2500, 3500 | 40 |
+  | C5 | Retry | Navigation | 2, 3 | 80 |
+  
+  Top up rule, decided now: if a batch yields fewer than 20 failures, it
+  is run once more at stronger settings (Latency 4500 and 5500; Retry 4
+  and 5), and no further. Only failure counts are looked at to apply
+  this.
+  Why these. Documents is the one family where all three classes can be
+  tested: overload comes from the Load test batch, slow response from C1
+  and retry from C2. Development data has seen Documents only as
+  overload. A classifier that recognises the page will call every
+  Documents failure overload; one that recognises the cause will not.
+  The other three families each get the class they lack (C3, C4, C5) as a
+  secondary check. Load cannot be crossed: it rewrites the Documents
+  response only, so overload is tested on Documents pages alone, which
+  is a stated limit.
+  Use: all rows from C1 to C5 are test data. They are excluded from
+  development and scored once, after `root-cause-freeze`. If the result
+  is poor it is reported as it stands and the model is not adjusted to
+  it. After the test, the model used in PRAT may be retrained on all data
+  with the same specification; its quality is then claimed only from the
+  frozen test.
+  Amended success criterion (replaces the one above): the primary test is
+  the Documents family (Load test batch, C1 and C2, three classes).
+  Precision and recall of at least 0.75 for each class, judged by point
+  estimate with the interval shown. The classifier is used in PRAT only
+  if it beats the rules baseline in macro F1 on that primary test; if it
+  does not, the rules are used and the finding is that rules suffice.
+  The Login, PasswordReset and Navigation families are reported per
+  family as secondary evidence, without a separate criterion. The same
+  family test batches (Retry 4 and 5, held-out Latency and Timing) are
+  also reported, as evidence of carry over to new magnitudes.
+  Not done: nothing has been run, fitted or scored.
