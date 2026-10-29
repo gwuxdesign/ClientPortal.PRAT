@@ -91,3 +91,4 @@ Desktop.ini
 ############################
 local-*.ps1
 local-*.sh
+.venv/
