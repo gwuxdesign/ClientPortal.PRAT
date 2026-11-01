@@ -92,3 +92,4 @@ Desktop.ini
 local-*.ps1
 local-*.sh
 .venv/
+__pycache__/
