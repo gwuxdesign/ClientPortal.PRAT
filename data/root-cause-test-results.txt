@@ -1,0 +1,33 @@
+Frozen model: logistic_regression (tag root-cause-freeze); table data/failure-test-table.csv, 419 test failures
+
+=== Primary part: Documents (170 failures: overload 72, slow_response 98) ===
+model: predicted counts failed_request 3, overload 166, slow_response 1
+  overload        precision 0.43 (0.3, 0.6)  recall 1.00 (1.0, 1.0)  [fail]
+  slow_response   precision 1.00 (0.0, 1.0)  recall 0.01 (0.0, 0.04)  [fail]
+rules: predicted counts overload 170, slow_response 0
+  overload        precision 0.42 (0.3, 0.58)  recall 1.00 (1.0, 1.0)  [fail]
+  slow_response   precision 0.00 (0.0, 0.0)  recall 0.00 (0.0, 0.0)  [fail]
+macro F1: model 0.31 (0.24, 0.39), rules 0.30 (0.23, 0.37), difference +0.02 (0.0, 0.04)
+
+=== Primary part: Login (48 failures: failed_request 20, slow_response 28) ===
+model: predicted counts failed_request 20, slow_response 28
+  failed_request  precision 1.00 (1.0, 1.0)  recall 1.00 (1.0, 1.0)  [PASS]
+  slow_response   precision 1.00 (1.0, 1.0)  recall 1.00 (1.0, 1.0)  [PASS]
+rules: predicted counts failed_request 20, overload 10, slow_response 18
+  failed_request  precision 1.00 (1.0, 1.0)  recall 1.00 (1.0, 1.0)  [PASS]
+  slow_response   precision 1.00 (1.0, 1.0)  recall 0.64 (0.25, 0.77)  [fail]
+macro F1: model 1.00 (1.0, 1.0), rules 0.89 (0.68, 0.94), difference +0.11 (0.06, 0.3)
+
+Mean macro F1 over the two parts: model 0.66, rules 0.59
+DECISION (by the rule fixed in the design doc): use the frozen model in PRAT
+
+=== Secondary batches (no criterion) ===
+PasswordReset / cross: 7 failures
+  model: true slow_response: slow_response 7
+  rules: true slow_response: slow_response 7
+PasswordReset / retry_test: 30 failures
+  model: true failed_request: failed_request 30
+  rules: true failed_request: failed_request 30
+Navigation / heldout_delay: 164 failures
+  model: true slow_response: failed_request 1, slow_response 163
+  rules: true slow_response: overload 5, slow_response 159
