@@ -1647,3 +1647,59 @@ them.
   parts, otherwise the rules are used.
   Not done: no model has been fitted, no test table has been built, and
   nothing has been scored on test data.
+
+- **1st Nov 2026**: root-cause development evaluation, run and recorded
+  before any model is frozen. `analysis/evaluate_root_cause.py` compares
+  the rules baseline, a decision tree (depth at most 3) and a logistic
+  regression (standard scaling), both with balanced class weights, using
+  leave-one-scenario-out validation on the 380 development failures (18
+  scenarios), pooled predictions, and a cluster bootstrap by condition
+  (2000 resamples, seed 20261101) for intervals. The selection rule was
+  written in the script before it was run: the model with the higher
+  pooled macro F1 on all rows with the full feature set is the
+  candidate; the tree wins if the two are within 0.01; the rules are never
+  the candidate, because the test decides between the frozen model and the
+  rules. The test table was not opened.
+  Disclosure: the script was first run by Claude in its own workspace, so
+  the results were seen before they were run on this machine. The output
+  on this machine matched line for line. Nothing was changed after seeing
+  it.
+  Results, all rows (macro F1, 95% interval, accuracy):
+  - rules 0.92 (0.65 to 0.96), 0.96
+  - tree 0.73 (0.66 to 0.83), 0.85
+  - logistic 0.79 (0.71 to 0.96), 0.92
+  Per class precision and recall, full features:
+  - rules: slow response 1.00/0.99, failed request 1.00/0.70, overload
+    0.88/1.00
+  - tree: slow response 0.87/0.89, failed request 0.35/0.30, overload
+    0.98/0.99
+  - logistic: slow response 0.88/0.99, failed request 0.87/0.30, overload
+    1.00/1.00
+  Live capture only (169 failures, 16 scenarios): rules 0.93, tree 0.54,
+  logistic 0.54 macro F1.
+  Ablations (macro F1, all rows). Without network features: tree 0.79,
+  logistic 0.80. Without timing features: tree 0.63, logistic 0.62.
+  Without exception and step features: tree 0.73, logistic 0.74. Timing
+  features matter most.
+  Selection rule applied: logistic (0.79) beats the tree (0.73) by more
+  than 0.01, so logistic is the candidate. The ablation in which logistic
+  scores slightly higher without network features (0.80) does not change
+  the choice, because the rule names the full feature set and was fixed
+  first.
+  Finding: both models score below the rules on development data. The
+  cause is failed request, which has two scenarios. With one held out the
+  model has seen failed requests from only one, and recall falls to 0.30
+  for both models, while the rules need no training data and score 0.70.
+  Without the recovered rows there is even less Retry data and both models
+  fall to 0.54. The intervals overlap (the rules' lower bound is 0.65), so
+  this is not evidence that the rules are better, only that nothing here
+  favours the models. Leave-one-scenario-out also holds scenarios back
+  inside a family, so it does not test crossing families; only the test
+  batches do.
+  Consequence, stated before scoring: the frozen model is unlikely to beat
+  the rules on the test parts. If it does not, the rules are used in PRAT
+  and the finding is that simple rules suffice, which is also the simpler
+  thing to port to .NET. The decision rule in the evaluation design is
+  unchanged.
+  Not done: the model has not been frozen or tagged, the test table has
+  not been built, and nothing has been scored on test data.
