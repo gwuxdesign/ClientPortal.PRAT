@@ -1703,3 +1703,59 @@ them.
   unchanged.
   Not done: the model has not been frozen or tagged, the test table has
   not been built, and nothing has been scored on test data.
+
+- **1st Nov 2026**: root-cause test scored, once. The frozen logistic
+  regression (tag `root-cause-freeze`, commit 4787438) and the rules
+  baseline were scored on the 419 test failures with
+  `analysis/score_root_cause.py`, which loads the tagged model without
+  refitting and refuses to run twice. The full output is in
+  `data/root-cause-test-results.txt`. Test table counts were checked
+  against the fixed batch sizes before scoring and matched.
+  Disclosures. (1) The script was run on this machine a few minutes before
+  it was committed, unchanged from the version it was written as; it was
+  committed afterwards, then the results file. (2) While testing the
+  script, Claude ran it by mistake on the test table in its own workspace,
+  saw only one line (the rules misclassifying 5 of the 164 held-out
+  Latency failures on Navigation, a secondary batch) and deleted that
+  output unread; the scoring is deterministic, so the run here is
+  unaffected.
+  Primary part, Documents (72 overload, 98 slow response). Both fail the
+  criterion. Model: overload precision 0.43 (0.30 to 0.60), recall 1.00;
+  slow response precision 1.00 but recall 0.01 (0.00 to 0.04). Rules:
+  overload precision 0.42, recall 1.00; slow response precision 0.00,
+  recall 0.00. Macro F1 0.31 for the model and 0.30 for the rules. Almost
+  every slow response failure on Documents pages was called overload by
+  both. This is the outcome the part was designed to expose: development
+  saw Documents only as overload, and on Documents pages latency makes a
+  step time out for 10 s with no failed request, which is the evidence
+  pattern of overload. Neither the model nor the rules separate the two
+  causes on these pages.
+  Primary part, Login (20 failed request, 28 slow response). The model
+  passes: precision and recall 1.00 for both classes. The rules pass
+  failed request (1.00 and 1.00) but fail slow response (precision 1.00,
+  recall 0.64, interval 0.25 to 0.77), calling 10 held-out Timing
+  failures overload. Macro F1 1.00 for the model and 0.89 for the rules.
+  Failed request was never seen in Login during development, so this is
+  a genuine cross family result, for Retry crossed with Login only.
+  Decision rule, applied as written: the mean macro F1 over the two parts
+  is 0.66 for the model and 0.59 for the rules, so the model is used in
+  PRAT. The success criterion is not met, because both Documents classes
+  fall below 0.75. The honest statement is therefore narrower than a pass:
+  the model beats the rules, almost entirely through the Login part
+  (difference +0.11, interval 0.06 to 0.30; Documents +0.02, interval 0.00
+  to 0.04), and it does not tell slow response from overload on Documents
+  pages.
+  Secondary batches, no criterion. PasswordReset slow response (7): model
+  7 of 7, rules 7 of 7. PasswordReset Retry 4 and 5 (30 failed request):
+  model 30 of 30, rules 30 of 30. Held-out Latency on Navigation (164 slow
+  response): model 163 of 164 (one called failed request), rules 159 of
+  164 (five called overload).
+  Limits that apply to every statement above: Retry is crossed with one
+  family only; overload is tested on Documents pages only; Documents has
+  few conditions (one Load batch, one Latency batch), so the intervals
+  are wide; the test score for failed request in Login rests on 20
+  failures.
+  Not done: no change to the model, the rules or the criterion has been or
+  will be made in response to these results. Any further analysis of why
+  the Documents failures look alike is exploratory and will be labelled as
+  such.
