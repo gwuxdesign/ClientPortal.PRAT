@@ -1,3 +1,5 @@
+using TestRunner.Web.Services.RootCause;
+
 namespace TestRunner.Web.Models;
 
 public class TestRunReport
@@ -30,4 +32,5 @@ public class TestScenarioResult
     public string? TraceFile { get; set; }
     public string? VideoFile { get; set; }
     public List<string> Steps { get; set; } = new();
+    public RootCauseResult? RootCause { get; set; }
 }

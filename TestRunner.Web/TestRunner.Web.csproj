@@ -7,4 +7,8 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Content Include="..\data\root-cause-frozen-model.json" Link="RootCause\root-cause-frozen-model.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

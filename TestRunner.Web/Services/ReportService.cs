@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Xml.Linq;
 using Microsoft.Extensions.Configuration;
 using TestRunner.Web.Models;
+using TestRunner.Web.Services.RootCause;
 
 namespace TestRunner.Web.Services;
 
@@ -195,6 +196,8 @@ public class ReportService : IReportService
             var errorInfo = result.Descendants(ns + "ErrorInfo").FirstOrDefault();
             var errorMessage = errorInfo?.Element(ns + "Message")?.Value;
             var stackTrace = errorInfo?.Element(ns + "StackTrace")?.Value;
+            var stdOut = result.Descendants(ns + "StdOut").FirstOrDefault()?.Value;
+            var rootCause = outcome == "Failed" ? ClassifyFailure(stdOut, errorMessage) : null;
 
             var matchedFileName = i < scenarioFiles.Count
                 ? scenarioFiles[i]
@@ -213,7 +216,8 @@ public class ReportService : IReportService
                 TraceFile = File.Exists(traceFile) ? $"{matchedFileName}.zip" : null,
                 VideoFile = File.Exists(videoFile) ? $"{matchedFileName}.webm" : null,
                 Steps = stepsByScenario.TryGetValue(name, out var steps)
-                               ? steps : new List<string>()
+                               ? steps : new List<string>(),
+                RootCause = rootCause
             };
 
             report.Scenarios.Add(scenario);
@@ -485,6 +489,8 @@ public class ReportService : IReportService
   .detail-inner h4 { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; margin-top: 12px; }
   .detail-inner h4:first-child { margin-top: 0; }
   .error-msg { color: var(--fail); font-size: 13px; white-space: pre-wrap; }
+  .rootcause { font-size: 13px; }
+  .rootcause-note { color: var(--text2); font-size: 12px; margin-top: 4px; }
   .stack-trace { color: var(--text2); font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
   .steps-list { list-style: none; }
   .steps-list li { padding: 3px 0; font-size: 13px; color: var(--text2); }
@@ -595,6 +601,8 @@ public class ReportService : IReportService
                 }
                 if (s.ErrorMessage != null)
                     sb.AppendLine($"              <h4>Error</h4><div class=\"error-msg\">{HtmlEncode(s.ErrorMessage)}</div>");
+                if (s.RootCause != null)
+                    sb.AppendLine(BuildRootCauseHtml(s.RootCause));
                 if (s.StackTrace != null)
                     sb.AppendLine($"              <h4>Stack Trace</h4><div class=\"stack-trace\">{HtmlEncode(s.StackTrace)}</div>");
                 if (s.TraceFile != null || s.VideoFile != null)
@@ -649,6 +657,38 @@ public class ReportService : IReportService
 """);
 
         return sb.ToString();
+    }
+
+    private static RootCauseResult? ClassifyFailure(string? stdOut, string? errorMessage)
+    {
+        try
+        {
+            return RootCauseClassifier.Default?.Classify(RootCauseEvidence.FromStdOut(stdOut, errorMessage));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string BuildRootCauseHtml(RootCauseResult rc)
+    {
+        if (!rc.Classified)
+            return $"              <h4>Likely cause</h4><div class=\"rootcause\"><div>Not classified</div><div class=\"rootcause-note\">{HtmlEncode(rc.Reason)}</div></div>";
+
+        var label = rc.Label switch
+        {
+            "slow_response" => "Slow response",
+            "failed_request" => "Failed request",
+            "overload" => "Overload",
+            _ => rc.Label ?? ""
+        };
+        var html = new StringBuilder();
+        html.Append($"              <h4>Likely cause</h4><div class=\"rootcause\"><div><strong>{HtmlEncode(label)}</strong> ({rc.Probability:P0} confidence)</div>");
+        if (rc.Note != null)
+            html.Append($"<div class=\"rootcause-note\">{HtmlEncode(rc.Note)}</div>");
+        html.Append("<div class=\"rootcause-note\">Estimated by a classifier trained on faults injected by the PRAT harness. Treat it as a pointer, not a diagnosis.</div></div>");
+        return html.ToString();
     }
 
     private static string HtmlEncode(string? value)
