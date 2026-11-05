@@ -1793,3 +1793,41 @@ them.
   will be made in response to these results. Any further analysis of why
   the Documents failures look alike is exploratory and will be labelled as
   such.
+
+- **5th Nov 2026**: integration into PRAT reporting, design decided before
+  any C# is written. Findings from reading the code: a failed scenario is
+  a `TestScenarioResult` in `TestRunner.Web/Models/TestRunReport.cs`, with
+  the error message, stack trace and step names but no step timings or
+  network events. The harness already derives those from each test's
+  standard output in the `.trx` (step durations, the failed step, and the
+  `[RequestFailed]` lines printed by `PlaywrightHooks.cs`), in Python.
+  `ReportService.ParseTrx` does not read that standard output yet.
+  Decisions.
+  1. The frozen model (`data/root-cause-frozen-model.json`, tag
+     `root-cause-freeze`) is read by a small C# classifier in
+     `TestRunner.Web`, which builds the same 14 features from a failed
+     scenario's error message and standard output and scores them. No
+     Python runs inside PRAT. The model is not refitted or changed.
+  2. Presentation: label plus confidence. Each classified failure shows
+     the predicted cause and its probability. A failure predicted as
+     overload carries a note that a page timeout with no failed request can
+     also come from slow responses, because the test could not tell these
+     apart on Documents pages. This note follows from the test result and
+     is the only place the result shapes the display; no threshold has been
+     tuned.
+  3. Out of scope failures are not classified. PRAT classifies a failure
+     only if it has timeout or failed request evidence: a
+     `TimeoutException`, a Playwright expectation timeout stated in the
+     message, or at least one failed network request. Anything else shows
+     "Not classified". The model has only seen injected faults, so a forced
+     label on an ordinary defect (wrong text, missing element) would be a
+     guess. All 380 development and all 419 test failures pass this gate,
+     so it changes no recorded result.
+  4. Verification: a golden file test. The C# feature builder and
+     classifier are run on the 799 recorded failures (development and test
+     tables) and must reproduce the Python features and predicted labels
+     exactly. This is the evidence that the port is faithful.
+  Stated limit: the classifier has been validated on faults injected by
+  this harness. Its behaviour on defects found in ordinary test runs is
+  unmeasured, which is why decision 3 exists.
+  Not done: no C# written, nothing changed in PRAT.
