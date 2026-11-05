@@ -1,6 +1,6 @@
 # PRAT test-execution harness: design notes
 
-Status: data collection finished for both objectives. The flaky test classifier (Objective 2) is built and evaluated. The root-cause classifier (Objective 3) is built, frozen and tested once: it beats the rules overall through the Login part of the test but does not separate slow response from overload on Documents pages, so its success criterion is not met. Integration into PRAT reporting is next. Started 3rd September 2026; this top part last updated 5th November 2026. The build log at the end is the full dated record of decisions, results and corrections; the sections above it describe the current state.
+Status: data collection finished for both objectives. The flaky test classifier (Objective 2) is built and evaluated. The root-cause classifier (Objective 3) is built, frozen and tested once: it beats the rules overall through the Login part of the test but does not separate slow response from overload on Documents pages, so its success criterion is not met. Integration into PRAT reporting is built and has been checked on a real run (5th November); what remains is the write-up. Started 3rd September 2026; this top part last updated 5th November 2026. The build log at the end is the full dated record of decisions, results and corrections; the sections above it describe the current state.
 
 ## Purpose
 
@@ -61,7 +61,8 @@ to 8 describe what exists now.
    `evaluate_root_cause.py` compares the rules, a decision tree and a
    logistic regression with leave-one-scenario-out validation and freezes
    the chosen model as JSON; `score_root_cause.py` scores the frozen model
-   and the rules once on the test table and refuses to run twice.
+   and the rules once on the test table and refuses to run twice;
+   `export_golden_cases.py` writes the 799 cases the C# port must reproduce.
 7. **Models.** Objective 2: a scaled logistic regression on two
    assertion-step timing features, frozen under the tag
    `final-model-freeze` and tested once on held-out conditions (precision
@@ -76,8 +77,14 @@ to 8 describe what exists now.
    both fail. Mean macro F1 0.66 against 0.59, so the decision rule
    selects the model; the 0.75 per class criterion is not met. See the
    build log, 1st Nov.
-8. **Integration into PRAT reporting.** Not started. Due mid December 2026.
-   The frozen model is a small JSON file, so a C# class can score it.
+8. **Integration into PRAT reporting.** Built 5th Nov 2026, ahead of the
+   mid December date. `TestRunner.Web/Services/RootCause/` reads the
+   frozen model JSON, builds the 14 features from a failed test's
+   standard output and scores them; `ReportService` shows a "Likely
+   cause" with its confidence on each failed scenario, and "Not
+   classified" when there is no timeout or failed request evidence.
+   `TestRunner.Web.Tests` holds 12 tests, including the golden cases.
+   Checked on a real run against REL, with and without a fault.
 
 ## Fault profiles
 
@@ -249,12 +256,16 @@ them.
 - Why does Retry fail only in the Login and PasswordReset families? None
   of 320 runs against Documents and Navigation failed, at magnitudes up to
   5. Not diagnosed.
-- How should the frozen model run inside PRAT, which is .NET? The test
-  chose the model over the rules, and it is exported as JSON (14 features,
-  3 classes), so a small C# class can read it and score a failed test.
-  Still to decide: where in the report the root cause appears, and what
-  the report says when slow response and overload are both plausible, as
-  on Documents pages.
+- ~~How should the frozen model run inside PRAT, which is .NET?~~
+  Decided and built 5th Nov: a C# classifier in `TestRunner.Web` reads
+  the model JSON, the report shows the cause with its confidence, an
+  overload prediction carries a note that slow responses can look the
+  same, and failures without timeout or failed request evidence are not
+  classified. See the build log, 5th Nov.
+- How does the classifier behave on failures from ordinary test runs,
+  and on unusual step positions? Unmeasured. It was validated on faults
+  injected by the harness only, and a probe showed it is sensitive to
+  how many steps ran before the failure (build log, 5th Nov).
 - Can richer evidence separate slow response from overload on Documents
   pages, for example page weight, response sizes or server timings? Not
   started. Any look at why the Documents failures resemble each other is
@@ -1849,3 +1860,53 @@ them.
   this harness. Its behaviour on defects found in ordinary test runs is
   unmeasured, which is why decision 3 exists.
   Not done: no C# written, nothing changed in PRAT.
+
+- **5th Nov 2026**: root-cause classifier integrated into PRAT's
+  reporting and checked end to end. Built as decided earlier today: the
+  classes in `TestRunner.Web/Services/RootCause/` read
+  `data/root-cause-frozen-model.json` (linked into the app's output so
+  there is one copy), build the same 14 features from a failed test's
+  standard output and score them; `ReportService.ParseTrx` reads each
+  failed test's standard output and attaches the result; the report shows
+  the likely cause with its probability, the overload note where it
+  applies, and a line saying it is a pointer and not a diagnosis. The
+  model and the rules were not changed.
+  Faithfulness to the Python. The port applies the same cleaning and
+  limits the harness applied to stored text (one line, hosts and emails
+  masked, error message cut at 400 characters, failed step at 200, network
+  events at 300 and at most three events), because 75 of the 799 recorded
+  error messages were at the 400 character limit and the model was trained
+  on the cut text.
+  Tests. `TestRunner.Web.Tests` has 12 tests and all pass. Five run the
+  799 golden cases (380 development and 419 test failures, exported by
+  `analysis/export_golden_cases.py`): the C# features agree with the
+  Python to 1e-9, the in scope gate agrees, the predicted labels agree and
+  the probabilities agree to 1e-9. The golden cases were checked against
+  the recorded results first: the 54 failed request calls, 166 overload
+  calls and 199 slow response calls on the test table match what
+  `score_root_cause.py` printed. Seven tests cover extraction from raw
+  standard output on a small hand made sample, the cleaning rules, the
+  not classified path and the overload note. Extraction from real output
+  was checked in the end to end run below, not by a test.
+  End to end check. `TestRunner.Web` was run locally against REL with
+  `FAULT_PROFILE=Retry` and `FAULT_MAGNITUDE=3` and the PasswordReset
+  suite: three scenarios passed and one failed, and the failed scenario
+  showed Failed request at 99% confidence. The same suite with the fault
+  switched off passed all four scenarios and showed no cause section.
+  Finding, a probe and not a test result. While writing the tests, two
+  hand made timeout failures were scored by the frozen model. A 10 s step
+  timeout after only two steps was called failed request (99.9%), and the
+  same failure after four steps was called overload (99.5%). The recorded
+  failures had a median failed step position of 4 to 5, so the model
+  extrapolates badly to short scenarios. The overload test uses the
+  four step sample for that reason. The model was not changed. It is
+  recorded as a limit, and it is a reason for the wording in the report.
+  Limits. The classifier has been validated on faults injected by this
+  harness and its behaviour on defects from ordinary runs is unmeasured,
+  which is why failures without timeout or failed request evidence are not
+  classified. The end to end check covered one failure type (Retry on
+  PasswordReset) and was not run for Documents or Login. The Documents
+  ambiguity between slow response and overload remains, and the note in the
+  report is the only handling of it.
+  Not done: the write-up, a decision on whether to send Antony an update,
+  and any look at richer evidence for Documents pages.
