@@ -1181,6 +1181,7 @@ them.
   unchanged at 101 conditions, confirming the held-out exclusion works
   on real data.
   The frozen model (fixed now, not to change):
+
   - Model: standardised features into logistic regression with balanced
     class weights (scikit-learn, 1000 iterations).
   - Features: `feat_then_median_s` and `feat_then_max_s`, the median
@@ -1191,6 +1192,7 @@ them.
     flaky under the headline rule (95 conditions, 21 flaky, all
     profiles). No held-out data is used in training.
   - Threshold: 0.5. No tuning.
+
   Reported beside it, for context and not selected: the same procedure
   on the total duration ratio features. The stricter labelling rule
   (at least 3 failures and 3 passes) is reported beside the headline
@@ -1279,6 +1281,7 @@ them.
   modelling. Reason: Objective 3 needs failure evidence from more than
   the delay faults, and Load had never been pushed past 2000.
   Results, descriptive only:
+
   - Retry 2 gave 13 failures and 27 passes; Retry 3 gave 11 failures and
     29 passes. All 24 failures carry error text, failed step and network
     events. The two PasswordReset validation scenarios passed at every
@@ -1287,7 +1290,9 @@ them.
   - Load 3000 and 4000: 8 runs at each magnitude, all passed, with no
     hang. Load has now produced one failure in the whole dataset, so
     there is still no overload class to learn from.
+
   Decisions, made before any root-cause modelling:
+
   - Label: the mechanism, derived from the injected fault family. Slow
     response (Timing and Latency), failed request (Retry) and overload
     (Load). Timing and Latency are one class because both delay a
@@ -1313,6 +1318,7 @@ them.
     conditions, which have not been used for any design decision, plus a
     fresh Retry batch at new magnitudes. The Retry magnitudes 2 and 3
     are development data from here on.
+
   Data recovery: 211 older failures (19 Sep to 4 Oct, across 20 runs)
   have no stored text because capture began on 8 Oct. The workflow
   uploaded only the last iteration's trx per run, so the artifacts will
@@ -1353,6 +1359,7 @@ them.
   24; 6000: 32 of 32 (probe plus repeats); 8000: 8 of 8 (one run per
   scenario). Load now holds 104 failures at 4500 and above.
   Findings:
+
   - The 6000 failures repeat: 32 of 32 failed, so the probe was not a
     one-off.
   - The change is sharp. 4000 passed every run and 4500 failed about 70%
@@ -1364,6 +1371,7 @@ them.
     event. Timing and Latency failures are also timeouts, so whether the
     captured evidence separates overload from slow response is still the
     open question for the classifier.
+
   Consequences: the Load conditions have 3 or 4 repeats each, below the 5
   required for the condition table, so they do not enter the flaky
   classifier's data and Objective 2 is unchanged. They are used for
@@ -1418,12 +1426,14 @@ them.
   was run. Reason: the root-cause classifier needs failures it was not
   designed on, for each class, and only slow response has them so far.
   Test data per class:
+
   - Slow response: the held-out Latency and Timing conditions collected
     on 15 Oct (192 failures with text). Nothing new to run.
   - Failed request: Retry at magnitudes 4 and 5, 10 repeats each, all
     four PasswordReset scenarios. Neither magnitude has any data today.
   - Overload: Load at magnitudes 4750, 6500 and 7000, 3 repeats each, all
     eight Documents scenarios. None of these has any data today.
+
   This changes one statement above: the Load batches entry said no
   further Load data would be collected. That was about finding where
   failures begin, which is unchanged; the new batch has a different
@@ -1477,12 +1487,14 @@ them.
   the page, such as step text, locator text, URL paths or scenario name,
   would identify the class without recognising any cause. So the
   features are limited to scenario-agnostic evidence:
+
   - exception type, and whether the message is a timeout or a failed
     expectation, and the timeout length stated in it;
   - failed step keyword (Given, When, Then), its position, how many steps
     completed before it, and the seconds spent in it and before it;
   - number of failed network events (0 to 3), their kind (aborted,
     failed, none) and request method.
+
   Excluded: scenario name, step and locator text, URL paths, profile,
   magnitude, run id, the recovered flag. Step position and keyword may
   still partly track the scenario family, so ablations are fixed now:
@@ -1612,6 +1624,7 @@ them.
   here from batch counts alone, has two parts, each a two class problem
   where the development data saw the family with only one of the two
   classes:
+
   - Documents: overload (Load test batch, 72 failures) against slow
     response (C1, 98 failures). Development saw Documents only as
     overload, so a classifier that recognises the page will call the
@@ -1619,6 +1632,7 @@ them.
   - Login: failed request (C3, 20 failures) against slow response
     (held-out Timing conditions, 28 failures). Development saw Login only
     as slow response.
+
   Success criterion (replaces the one above): precision and recall of at
   least 0.75 for each class in each of the two parts, judged by point
   estimate with the interval shown. The classifier is used in PRAT only
@@ -1699,16 +1713,20 @@ them.
   on this machine matched line for line. Nothing was changed after seeing
   it.
   Results, all rows (macro F1, 95% interval, accuracy):
+
   - rules 0.92 (0.65 to 0.96), 0.96
   - tree 0.73 (0.66 to 0.83), 0.85
   - logistic 0.79 (0.71 to 0.96), 0.92
+
   Per class precision and recall, full features:
+
   - rules: slow response 1.00/0.99, failed request 1.00/0.70, overload
     0.88/1.00
   - tree: slow response 0.87/0.89, failed request 0.35/0.30, overload
     0.98/0.99
   - logistic: slow response 0.88/0.99, failed request 0.87/0.30, overload
     1.00/1.00
+
   Live capture only (169 failures, 16 scenarios): rules 0.93, tree 0.54,
   logistic 0.54 macro F1.
   Ablations (macro F1, all rows). Without network features: tree 0.79,
