@@ -1,6 +1,6 @@
 # PRAT test-execution harness: design notes
 
-Status: data collection finished for both objectives. The flaky test classifier (Objective 2) is built and evaluated. The root-cause classifier (Objective 3) has its evaluation designed and fixed, with nothing modelled yet. Started 3rd September 2026; this top part last updated 29th October 2026. The build log at the end is the full dated record of decisions, results and corrections; the sections above it describe the current state.
+Status: data collection finished for both objectives. The flaky test classifier (Objective 2) is built and evaluated. The root-cause classifier (Objective 3) is built, frozen and tested once: it beats the rules overall through the Login part of the test but does not separate slow response from overload on Documents pages, so its success criterion is not met. Integration into PRAT reporting is next. Started 3rd September 2026; this top part last updated 5th November 2026. The build log at the end is the full dated record of decisions, results and corrections; the sections above it describe the current state.
 
 ## Purpose
 
@@ -19,7 +19,7 @@ prototype is due in January 2027.
 
 ## Architecture
 
-Seven stages. Stages 1 to 2 held as planned; stages 3 and 4 were built
+Eight stages. Stages 1 to 2 held as planned; stages 3 and 4 were built
 differently from the original plan (corrected 19th Sept, once it became
 clear `TestRunner.Web` was never touched by any of this work); stages 5
 to 8 describe what exists now.
@@ -54,15 +54,30 @@ to 8 describe what exists now.
    leave-one-scenario-out validation; `final_evaluation.py` applies the
    frozen model once to held-out conditions; `recover_from_logs.py`
    recovers older failure text from run logs; `migrate_schema.py` changes
-   the results file schema safely.
+   the results file schema safely. For Objective 3, `build_failure_table.py`
+   turns failed runs into one row each with scenario agnostic features
+   (development table, and a test table written only with `--test`);
+   `root_cause_rules.py` is the hand written rules baseline;
+   `evaluate_root_cause.py` compares the rules, a decision tree and a
+   logistic regression with leave-one-scenario-out validation and freezes
+   the chosen model as JSON; `score_root_cause.py` scores the frozen model
+   and the rules once on the test table and refuses to run twice.
 7. **Models.** Objective 2: a scaled logistic regression on two
    assertion-step timing features, frozen under the tag
    `final-model-freeze` and tested once on held-out conditions (precision
    0.89, recall 0.85 by point estimate, with the caveats in the build log,
-   15th Oct). Objective 3: failure examples, rules baseline, two candidate
-   models, test batches and success criterion fixed on 29th Oct; no model
-   has been fitted.
+   15th Oct). Objective 3: a scaled logistic regression on 14 scenario agnostic
+   failure features, chosen by a rule fixed before the evaluation was run
+   (macro F1 0.79 against 0.73 for a decision tree and 0.92 for the rules
+   on development data), frozen under the tag `root-cause-freeze` on 1st
+   Nov and exported to `data/root-cause-frozen-model.json`. Scored once on
+   419 test failures: it beats the rules on the Login part (macro F1 1.00
+   against 0.89) and ties them on Documents (0.31 against 0.30), where
+   both fail. Mean macro F1 0.66 against 0.59, so the decision rule
+   selects the model; the 0.75 per class criterion is not met. See the
+   build log, 1st Nov.
 8. **Integration into PRAT reporting.** Not started. Due mid December 2026.
+   The frozen model is a small JSON file, so a C# class can score it.
 
 ## Fault profiles
 
@@ -108,7 +123,10 @@ only.
   limited to evidence that does not identify the page, a rules baseline is
   built first, and the cross category batches test whether the classifier
   recognises causes and not scenario families. The classifier is used in
-  PRAT only if it beats the rules on the primary test.
+  PRAT only if it beats the rules on the primary test. It did (mean macro
+  F1 0.66 against 0.59), through Login only. On Documents pages neither
+  the model nor the rules separate slow response from overload, so the
+  success criterion is not met and the result is reported that way.
 - **Public repository.** Failure text is masked before it is stored, no
   credentials are committed, and secrets live in GitHub Secrets.
 
@@ -216,18 +234,34 @@ them.
 - ~~Timing for the Concurrency and Load heads-up to REL's monitoring
   owner?~~ Decided 18th Sept not to pursue; Concurrency stays unrun as a
   scope decision.
-- Does the captured evidence separate overload from slow response? Both
-  end in timeouts with no failed network request. This is the hard part of
-  Objective 3 and is tested by the cross category batches.
-- Do the 211 recovered failures behave differently from live capture?
-  Results will be reported with and without them.
+- ~~Does the captured evidence separate overload from slow response?~~
+  Answered 1st Nov: not on Documents pages. Latency there ends in a 10 s
+  step timeout with no failed request, the same signature as overload,
+  and 94 of 98 slow response failures were called overload by the model
+  (3 more were called failed request; all 98 were called overload by the
+  rules). On Login the evidence separates slow response from failed
+  request cleanly.
+- ~~Do the 211 recovered failures behave differently from live capture?~~
+  Reported 1st Nov. The rules score the same without them (macro F1 0.93
+  against 0.92), but the two models fall from 0.79 and 0.73 to 0.54. The
+  cause was not isolated; fewer Retry failures in live capture is the
+  likely reason.
 - Why does Retry fail only in the Login and PasswordReset families? None
   of 320 runs against Documents and Navigation failed, at magnitudes up to
   5. Not diagnosed.
-- How should the root-cause classifier run inside PRAT, which is .NET: as
-  rules written in C#, as a script called from the report step, or as an
-  exported model? To be decided once the evaluation shows whether a model
-  beats the rules.
+- How should the frozen model run inside PRAT, which is .NET? The test
+  chose the model over the rules, and it is exported as JSON (14 features,
+  3 classes), so a small C# class can read it and score a failed test.
+  Still to decide: where in the report the root cause appears, and what
+  the report says when slow response and overload are both plausible, as
+  on Documents pages.
+- Can richer evidence separate slow response from overload on Documents
+  pages, for example page weight, response sizes or server timings? Not
+  started. Any look at why the Documents failures resemble each other is
+  exploratory and does not change the recorded result.
+- Retry is tested crossed with one family only (Login) and overload on
+  Documents pages only, so neither result says how far the classifier
+  generalises beyond those.
 
 ## Build log
 
