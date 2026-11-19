@@ -51,25 +51,32 @@ jobs:
         run: dotnet restore TestRunner.Web.Tests/TestRunner.Web.Tests.csproj
 
       - name: Test
-        shell: bash
         run: |
           dotnet test TestRunner.Web.Tests/TestRunner.Web.Tests.csproj \
             --no-restore \
             --logger "trx;LogFileName=unit-tests.trx" \
-            --results-directory TestResults \
-            | tee test.log
+            --results-directory TestResults
 
       - name: Check that tests ran and summarise
         if: always()
         shell: bash
         run: |
-          if grep -E 'Test summary: total: [1-9]' test.log; then
-            grep 'Test summary' test.log | sed 's/^/Unit tests: /' >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "No test summary with at least one test was found." >&2
-            echo "Unit tests: no tests were reported" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+          python3 - <<'PY'
+          import os, re, sys
+          try:
+              text = open("TestResults/unit-tests.trx", encoding="utf-8-sig").read()
+          except OSError:
+              print("No test result file was written.", file=sys.stderr)
+              sys.exit(1)
+          m = re.search(r"<Counters ([^>]*)/>", text)
+          c = dict(re.findall(r'(\w+)="([^"]*)"', m.group(1))) if m else {}
+          total = int(c.get("total", 0))
+          line = f"Unit tests: total {total}, passed {c.get('passed')}, failed {c.get('failed')}"
+          print(line)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(line + "\n")
+          sys.exit(0 if total > 0 else 1)
+          PY
 
       - name: Upload test results
         if: always()
