@@ -85,6 +85,8 @@ to 8 describe what exists now.
    classified" when there is no timeout or failed request evidence.
    `TestRunner.Web.Tests` holds 12 tests, including the golden cases.
    Checked on a real run against REL, with and without a fault.
+   `.github/workflows/unit-tests.yml` runs the tests on GitHub for
+   changes to the app, the tests or the frozen model (19th Nov).
 
 ## Fault profiles
 
@@ -1910,3 +1912,41 @@ them.
   report is the only handling of it.
   Not done: the write-up, a decision on whether to send Antony an update,
   and any look at richer evidence for Documents pages.
+
+- **19th Nov 2026**: CI step added for the C# tests.
+  `.github/workflows/unit-tests.yml` runs `TestRunner.Web.Tests` (the 12
+  tests, including the 799 golden cases) on GitHub for pushes and pull
+  requests that touch `TestRunner.Web`, `TestRunner.Web.Tests`, the frozen
+  model JSON, `global.json`, `Directory.Build.props` or the workflow
+  itself, and on manual dispatch. The paths filter keeps it off the
+  harness bot's data commits and off documentation commits. It needs no
+  browser and no access to REL, has read only permissions, cancels an
+  older run of the same branch when a newer push arrives, and uploads the
+  `.trx` result file for 14 days. A final step reads the test count from
+  the result file, writes it to the run summary, and fails the job if no
+  tests were reported or the file is missing, so an empty run cannot pass.
+  Correction. The first version of that final step looked for the text
+  "Test summary: total: N" in the console output. That line appears when
+  `dotnet test` writes to a terminal, as on the development laptop, but
+  not on the CI runner, so the first run failed at that step even though
+  the tests themselves were not the problem. The assumption about the
+  output format was made without checking it. The step was rewritten to
+  read the counters from the `.trx` file, which has the same format
+  everywhere, and the rewritten step was tried on a sample result file
+  with 12 tests and with none before it was committed.
+  Results. The runs after the fix are green with "total 12, passed 12,
+  failed 0" on the summary page, in 23 s and 41 s. The first green run
+  carried a warning that the version 4 actions target Node 20, which
+  GitHub is retiring; the workflow now uses `actions/checkout` 5,
+  `actions/setup-dotnet` 5 and `actions/upload-artifact` 6, which declare
+  Node 24, and the later run shows no annotation.
+  Limits. CI covers the C# side only. The Python analysis scripts have no
+  tests, and CI does not regenerate the golden file, so it checks that the
+  C# agrees with the golden file as committed and not that the golden file
+  is still what the Python produces. The harness workflow `harness.yml`
+  still uses the version 4 actions and shows the same Node 20 warning; it
+  was left alone because it pushes data commits as the bot and a newer
+  `checkout` changes how credentials are stored, so the upgrade should be
+  tried with a short harness run first.
+  Not done: tests for the Python analysis scripts, the write-up, the
+  mapping to KSBs and the update of the Docs summary.
