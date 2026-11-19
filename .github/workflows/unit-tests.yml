@@ -1,0 +1,80 @@
+name: Unit tests
+
+# Runs TestRunner.Web.Tests: the root cause classifier, the 799 golden cases
+# that tie it to the Python, and the evidence extraction. It needs no browser
+# and no access to REL, so it is safe to run on every change.
+#
+# The paths filter keeps it off the harness bot's data commits (those only
+# touch data/harness-results.csv and the recovered text file) and off
+# documentation commits.
+
+on:
+  push:
+    paths:
+      - 'TestRunner.Web/**'
+      - 'TestRunner.Web.Tests/**'
+      - 'data/root-cause-frozen-model.json'
+      - 'global.json'
+      - 'Directory.Build.props'
+      - '.github/workflows/unit-tests.yml'
+  pull_request:
+    paths:
+      - 'TestRunner.Web/**'
+      - 'TestRunner.Web.Tests/**'
+      - 'data/root-cause-frozen-model.json'
+      - 'global.json'
+      - 'Directory.Build.props'
+      - '.github/workflows/unit-tests.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore TestRunner.Web.Tests/TestRunner.Web.Tests.csproj
+
+      - name: Test
+        shell: bash
+        run: |
+          dotnet test TestRunner.Web.Tests/TestRunner.Web.Tests.csproj \
+            --no-restore \
+            --logger "trx;LogFileName=unit-tests.trx" \
+            --results-directory TestResults \
+            | tee test.log
+
+      - name: Check that tests ran and summarise
+        if: always()
+        shell: bash
+        run: |
+          if grep -E 'Test summary: total: [1-9]' test.log; then
+            grep 'Test summary' test.log | sed 's/^/Unit tests: /' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No test summary with at least one test was found." >&2
+            echo "Unit tests: no tests were reported" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: TestResults/unit-tests.trx
+          retention-days: 14
